@@ -241,7 +241,9 @@ mod tests {
         // But the caller was correctly identified as this very process.
         assert_eq!(peer_pid(&server_side).unwrap(), std::process::id() as libc::pid_t);
         let token = peer_audit_token(&server_side).unwrap();
-        assert_eq!(check_code(&Process::AuditToken(token), "always"), Ok(()), "the test binary is validly (ad-hoc) signed");
+        // The linker ad-hoc signs arm64 binaries, but leaves x86_64 ones unsigned.
+        let expected = if cfg!(target_arch = "aarch64") { Ok(()) } else { Err(SignatureError::NotMet) };
+        assert_eq!(check_code(&Process::AuditToken(token), "always"), expected, "the test binary's (ad-hoc) signature");
     }
 
     #[test]

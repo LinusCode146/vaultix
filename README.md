@@ -27,7 +27,8 @@ Download the app and the extension from
 [Releases](https://github.com/LinusCode146/vaultix/releases). The release notes
 explain how to open the app the first time and load the extension.
 
-- **macOS:** Apple silicon, macOS 13 or later.
+- **macOS:** Apple silicon or Intel, macOS 13 or later. Touch ID needs a Mac
+  with a Touch ID sensor; other Macs unlock with the master password.
 - **Windows:** Windows 10 (1803) or 11, x64. The installer isn't code-signed
   yet, so SmartScreen asks first: More info → Run anyway.
 - **Linux:** x64 `.deb` (Debian, Ubuntu) or `.rpm` (Fedora, openSUSE). The
@@ -82,7 +83,8 @@ npm run build                   # then load extension/dist as an unpacked extens
 On Linux, install Tauri's [system
 packages](https://tauri.app/start/prerequisites/#linux) first.
 
-`scripts/release.sh` builds and signs `Vaultix.app`. With a Developer ID it also
+`scripts/release.sh` builds and signs `Vaultix.app` as a universal app (Apple
+silicon and Intel). With a Developer ID it also
 notarizes it and makes a `.dmg`; see the script's header for setup. Pushing a
 `v*` tag builds the Windows installer and the Linux packages on GitHub Actions
 and attaches them to that release.

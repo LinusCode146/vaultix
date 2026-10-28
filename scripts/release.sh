@@ -1,5 +1,6 @@
 #!/bin/bash
-# Build Vaultix.app with the native messaging host inside, sign both, and, with
+# Build Vaultix.app as a universal app (Apple silicon and Intel) with the
+# native messaging host inside, sign both, and, with
 # a Developer ID, notarize the app and wrap it in a notarized disk image that
 # opens on any Mac without Gatekeeper warnings.
 #
@@ -16,7 +17,7 @@
 #         xcrun notarytool store-credentials vaultix --apple-id you@example.com \
 #           --team-id TEAMID --password <app-specific password from appleid.apple.com>
 #
-# Output: target/release/bundle/macos/Vaultix.app and, when notarized,
+# Output: target/universal-apple-darwin/release/bundle/macos/Vaultix.app and, when notarized,
 # dist/Vaultix-<version>.dmg.
 
 set -euo pipefail
@@ -25,7 +26,7 @@ cd "$(dirname "$0")/.."
 IDENTITY="${VAULTIX_SIGN_IDENTITY:--}"
 PROFILE="${VAULTIX_NOTARY_PROFILE:-}"
 VERSION=$(sed -n 's/^ *"version": *"\(.*\)",/\1/p' app/src-tauri/tauri.conf.json | head -1)
-APP=target/release/bundle/macos/Vaultix.app
+APP=target/universal-apple-darwin/release/bundle/macos/Vaultix.app
 HOST=vaultix-native-host
 
 if [[ "$IDENTITY" != "-" && -z "$PROFILE" ]]; then
@@ -33,11 +34,15 @@ if [[ "$IDENTITY" != "-" && -z "$PROFILE" ]]; then
   exit 1
 fi
 
-echo "==> Building Vaultix $VERSION"
-cargo build --release -p "$HOST"
+echo "==> Building Vaultix $VERSION for Apple silicon and Intel"
+rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null
+for target in aarch64-apple-darwin x86_64-apple-darwin; do
+  cargo build --release -p "$HOST" --target "$target"
+done
 # Tauri doesn't sign here: everything is signed below, the host first.
-(cd app && env -u APPLE_SIGNING_IDENTITY -u APPLE_CERTIFICATE npm run tauri build -- --bundles app)
-cp "target/release/$HOST" "$APP/Contents/MacOS/$HOST"
+(cd app && env -u APPLE_SIGNING_IDENTITY -u APPLE_CERTIFICATE npm run tauri build -- --bundles app --target universal-apple-darwin)
+lipo -create -output "$APP/Contents/MacOS/$HOST" \
+  "target/aarch64-apple-darwin/release/$HOST" "target/x86_64-apple-darwin/release/$HOST"
 
 echo "==> Signing with ${IDENTITY/#-/an ad-hoc signature}"
 if [[ "$IDENTITY" == "-" ]]; then TIMESTAMP=--timestamp=none; else TIMESTAMP=--timestamp; fi

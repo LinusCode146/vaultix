@@ -6024,7 +6024,7 @@ dependencies = [
 
 [[package]]
 name = "vaultix-app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -6058,7 +6058,7 @@ dependencies = [
 
 [[package]]
 name = "vaultix-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -6088,7 +6088,7 @@ dependencies = [
 
 [[package]]
 name = "vaultix-native-host"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "dirs",
  "serde_json",
