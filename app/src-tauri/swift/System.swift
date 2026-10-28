@@ -1,5 +1,5 @@
 // macOS events and services the Rust side can't reach directly. Linked into
-// the app with TouchID.swift; the Rust side is src/system.rs.
+// the app with TouchID.swift; the Rust side is src/system/macos.rs.
 
 import AppKit
 import Foundation
@@ -8,7 +8,7 @@ import ScreenCaptureKit
 import Security
 import Vision
 
-/// Why the Mac is going away; the codes are shared with src/system.rs.
+/// Why the Mac is going away; the codes are shared with src/system/macos.rs.
 private enum Away: Int32 {
     case sleep = 1
     case screensSleep = 2

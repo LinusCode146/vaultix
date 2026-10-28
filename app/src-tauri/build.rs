@@ -7,14 +7,16 @@ fn main() {
     // the icon files leaves the old icon in the binary (and in the Dock).
     println!("cargo:rerun-if-changed=icons");
     println!("cargo:rerun-if-changed=tauri.conf.json");
-    build_touch_id();
+    if env::var("CARGO_CFG_TARGET_OS").unwrap() == "macos" {
+        build_swift();
+    }
     tauri_build::build()
 }
 
 /// Compile swift/*.swift into a static library (CryptoKit's Secure Enclave
 /// API, ScreenCaptureKit and Vision are Swift/Objective-C only) and link it, plus the Swift runtime that ships
 /// with macOS.
-fn build_touch_id() {
+fn build_swift() {
     println!("cargo:rerun-if-changed=swift/TouchID.swift");
     println!("cargo:rerun-if-changed=swift/System.swift");
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());

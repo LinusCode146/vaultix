@@ -152,6 +152,11 @@ impl AppState {
                 *self.vault.lock().unwrap() = Some(vault);
                 Ok(())
             }
+            Err(TouchIdError::Invalidated) if crate::touchid::SETUP_PROMPTS => {
+                // Windows Hello was reset: turn it off, to be turned on again in Settings.
+                Enrollment::remove(&dir);
+                Err(TouchIdError::Invalidated.code().into())
+            }
             Err(TouchIdError::Invalidated) => {
                 // Set up again at the next master password unlock.
                 enrollment.invalidate();
@@ -433,7 +438,8 @@ pub async fn unlock(app: AppHandle, state: State<'_, AppState>, password: String
         let now = crate::touchid::now_secs();
         let updated = match enrollment.has_key() {
             true => None,
-            false => Enrollment::create(&vault, now).ok(),
+            false if !crate::touchid::SETUP_PROMPTS => crate::touchid::new_key().ok().map(|k| Enrollment::create(&vault, k, now)),
+            false => None,
         }
         .unwrap_or_else(|| {
             let mut e = enrollment;
@@ -484,7 +490,9 @@ pub async fn forget_vault(app: AppHandle, state: State<'_, AppState>) -> CmdResu
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TouchIdStatus {
-    /// This Mac has Touch ID with at least one finger enrolled.
+    /// "touch-id" or "windows-hello"; `None` on systems without either.
+    kind: Option<&'static str>,
+    /// Touch ID with at least one finger enrolled, or Windows Hello set up.
     available: bool,
     /// The user turned it on.
     enabled: bool,
@@ -501,7 +509,7 @@ pub async fn touch_id_status(state: State<'_, AppState>) -> CmdResult<TouchIdSta
     let vault_id = state.config.lock().unwrap().vault.as_ref().map(|v| v.vault_id);
     let enrollment = Enrollment::load(&state.config_dir()).filter(|e| Some(e.vault_id) == vault_id && e.wanted);
     let usable = available && enrollment.as_ref().zip(vault_id).is_some_and(|(e, id)| e.usable(id));
-    Ok(TouchIdStatus { available, enabled: enrollment.is_some(), usable, password_required: enrollment.is_some() && !usable })
+    Ok(TouchIdStatus { kind: crate::touchid::kind(), available, enabled: enrollment.is_some(), usable, password_required: enrollment.is_some() && !usable })
 }
 
 /// Turn Touch ID unlock on or off. Turning it on needs the vault unlocked.
@@ -512,6 +520,11 @@ pub async fn set_touch_id(state: State<'_, AppState>, enabled: bool) -> CmdResul
         Enrollment::remove(&dir);
         return Ok(());
     }
+    if !state.is_unlocked() {
+        return Err("locked".into());
+    }
+    // Windows Hello asks the user here; don't hold the vault meanwhile.
+    let key = tauri::async_runtime::spawn_blocking(crate::touchid::new_key).await.map_err(|e| e.to_string())?.map_err(|e| e.code().to_string())?;
     let guard = state.vault.lock().unwrap();
     let vault = guard.as_ref().ok_or("locked")?;
     // Keep the two-week clock from the last master password entry, if known.
@@ -519,7 +532,7 @@ pub async fn set_touch_id(state: State<'_, AppState>, enabled: bool) -> CmdResul
         .filter(|e| e.vault_id == vault.vault_id())
         .map(|e| e.password_at)
         .unwrap_or_else(crate::touchid::now_secs);
-    let enrollment = Enrollment::create(vault, password_at).map_err(|e| e.code().to_string())?;
+    let enrollment = Enrollment::create(vault, key, password_at);
     enrollment.save(&dir).map_err(|e| e.to_string())
 }
 
@@ -778,11 +791,11 @@ pub async fn backup_now(state: State<'_, AppState>) -> CmdResult<BackupInfo> {
 }
 
 #[tauri::command]
-pub async fn reveal_backups(state: State<'_, AppState>) -> CmdResult<()> {
+pub async fn reveal_backups(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    use tauri_plugin_opener::OpenerExt;
     let dir = state.backup_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    std::process::Command::new("/usr/bin/open").arg(&dir).spawn().map_err(|e| e.to_string())?;
-    Ok(())
+    app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
 }
 
 /// Items in a backup that were deleted or edited since it was made.
@@ -890,7 +903,7 @@ pub struct OpenedIn {
 /// Open one of a login's websites in the browser where the Vaultix extension
 /// runs; the extension then fills and submits the login form when it appears.
 #[tauri::command]
-pub async fn open_and_fill(state: State<'_, AppState>, id: String, url: String) -> CmdResult<OpenedIn> {
+pub async fn open_and_fill(app: AppHandle, state: State<'_, AppState>, id: String, url: String) -> CmdResult<OpenedIn> {
     let id = parse_id(&id)?;
     let parsed = url::Url::parse(&url).or_else(|_| url::Url::parse(&format!("https://{url}"))).map_err(|_| "That isn't a web address.")?;
     if !matches!(parsed.scheme(), "https" | "http") {
@@ -905,18 +918,27 @@ pub async fn open_and_fill(state: State<'_, AppState>, id: String, url: String) 
     })?;
     *state.pending_fill.lock().unwrap() = Some(PendingFill { item_id: id, expires_at: SystemTime::now() + OPEN_AND_FILL_WINDOW });
 
-    let browser = state.config.lock().unwrap().browser_app.clone().filter(|p| p.is_dir());
-    let mut open = std::process::Command::new("/usr/bin/open");
-    if let Some(app) = &browser {
-        open.arg("-a").arg(app);
+    let browser = state.config.lock().unwrap().browser_app.clone().filter(|p| p.exists());
+    open_in(&app, browser.as_deref(), parsed.as_str()).map_err(|_| "Couldn't open the website.")?;
+    Ok(OpenedIn { browser: browser.as_deref().and_then(crate::ipc::browser_name) })
+}
+
+/// Open `url` in `browser` (an `.app` bundle on macOS, an executable
+/// elsewhere), or in the default browser.
+fn open_in(app: &AppHandle, browser: Option<&Path>, url: &str) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let Some(browser) = browser else {
+        return app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string());
+    };
+    #[cfg(target_os = "macos")]
+    let status = std::process::Command::new("/usr/bin/open").arg("-a").arg(browser).arg(url).status();
+    // A Chromium browser started with a URL hands it to the running instance.
+    #[cfg(not(target_os = "macos"))]
+    let status = std::process::Command::new(browser).arg(url).spawn().map(|_| std::process::ExitStatus::default());
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        _ => Err("couldn't start the browser".into()),
     }
-    let status = open.arg(parsed.as_str()).status().map_err(|e| e.to_string())?;
-    if !status.success() {
-        return Err("Couldn't open the website.".into());
-    }
-    Ok(OpenedIn {
-        browser: browser.and_then(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned())),
-    })
 }
 
 // ---------- Files ----------

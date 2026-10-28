@@ -18,6 +18,7 @@ vaultix-core = { path = "../../crates/vaultix-core" }
 psl = "2.1.245"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+# macos-private-api only does something on macOS (transparent quick search window).
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-dialog = "2"
@@ -27,6 +28,38 @@ zeroize = "1.9.1"
 ureq = "3.5.0"
 tauri-plugin-global-shortcut = "2"
 notify = "8.2.1"
+
+tauri-plugin-opener = "2"
+sha2 = "0.10"
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+trash = "5"
+rqrr = "0.10"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", default-features = false, features = ["blocking-api"] }
+
+[target.'cfg(windows)'.dependencies]
+xcap = "0.7"
+uds_windows = "1"
+winreg = "0.56"
+windows = { version = "0.62", features = [
+  "Foundation",
+  "Security_Credentials",
+  "Security_Cryptography",
+  "Storage_Streams",
+  "Win32_Foundation",
+  "Win32_Networking_WinSock",
+  "Win32_Security",
+  "Win32_Security_Cryptography",
+  "Win32_Security_WinTrust",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_LibraryLoader",
+  "Win32_System_RemoteDesktop",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

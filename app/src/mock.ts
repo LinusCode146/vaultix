@@ -1,6 +1,7 @@
 // In-memory stand-in for the Rust backend, used only when the UI runs in a
 // normal browser. Nothing here is secure; it exists for layout and flow work.
-import type { Api, AppSettings, BackupInfo, FieldValue, ItemInput, ItemView, Status, StrengthLabel, StrengthView, TotpCode, WatchtowerIssue, WatchtowerReport } from "./api";
+import type { Api, AppSettings, BackupInfo, FieldValue, ItemInput, ItemView, Status, StrengthLabel, StrengthView, TotpCode, TouchIdStatus, WatchtowerIssue, WatchtowerReport } from "./api";
+import { platform } from "./platform";
 
 let stage: Status["stage"] = "setup";
 let vaultDir: string | null = null;
@@ -350,7 +351,8 @@ export const mockApi: Api = {
     return true;
   },
   async touchIdStatus() {
-    return { available: true, enabled: touchId, usable: touchId, passwordRequired: false };
+    const kind = { mac: "touch-id", windows: "windows-hello", linux: null }[platform] as TouchIdStatus["kind"];
+    return { kind, available: kind !== null, enabled: touchId, usable: touchId, passwordRequired: false };
   },
   async setTouchId(enabled) {
     requireUnlocked();

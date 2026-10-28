@@ -9,11 +9,12 @@ import { Settings, TouchIdOffer } from "../components/Settings";
 import { Watchtower, type IssueFilter } from "../components/Watchtower";
 import { Avatar, Icon, IconButton, forgetSiteIcons, hostOf } from "../components/ui";
 import { setThemePref, useTheme } from "../theme";
+import { computer, computers, keys, modKey } from "../platform";
 
 /** Lock after this much time without mouse or keyboard input. */
 const IDLE_LOCK_MS = 5 * 60_000;
 /**
- * Changes from other Macs are picked up as soon as they land in the vault
+ * Changes from other computers are picked up as soon as they land in the vault
  * folder (the app watches it). This timer, and syncing when the window gains
  * focus, are a fallback, and also make the daily backup.
  */
@@ -40,7 +41,7 @@ export function VaultScreen({ onLocked }: { onLocked: () => void }) {
   const [picking, setPicking] = useState(false);
   const [offerTouchId, setOfferTouchId] = useState(false);
 
-  // After unlocking with the password on a Mac with Touch ID, offer it once.
+  // After unlocking with the password on a computer with Touch ID or Windows Hello, offer it once.
   useEffect(() => {
     let dismissed = false;
     try {
@@ -124,10 +125,10 @@ export function VaultScreen({ onLocked }: { onLocked: () => void }) {
     };
   }, [lock]);
 
-  // ⌘F search, ⌘N new item, ⌘L lock.
+  // ⌘F search, ⌘N new item, ⌘L lock (Ctrl on Windows and Linux).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.metaKey) return;
+      if (!modKey(e)) return;
       if (e.key === "f") {
         e.preventDefault();
         searchRef.current?.focus();
@@ -220,7 +221,7 @@ export function VaultScreen({ onLocked }: { onLocked: () => void }) {
             <Icon name="search" size={15} />
             <input
               ref={searchRef}
-              placeholder="Search  ⌘F"
+              placeholder={`Search  ${keys.mod}F`}
               aria-label="Search items"
               value={query}
               onChange={(e) => {
@@ -234,7 +235,7 @@ export function VaultScreen({ onLocked }: { onLocked: () => void }) {
               }}
             />
           </label>
-          <button className="btn primary new-item" onClick={() => setPicking(true)} title="New item (⌘N)">
+          <button className="btn primary new-item" onClick={() => setPicking(true)} title={`New item (${keys.mod}N)`}>
             <Icon name="plus" size={14} /> New item
           </button>
         </div>
@@ -286,10 +287,10 @@ export function VaultScreen({ onLocked }: { onLocked: () => void }) {
         <div className="sidebar-bottom">
           <button className="sync-status" onClick={sync} title="Sync now">
             <span className={lastSync ? "sync-dot" : "sync-dot pending"} aria-hidden="true" />
-            {lastSync ? `Synced ${syncedAgo(lastSync.at)} · ${lastSync.devices} ${lastSync.devices === 1 ? "Mac" : "Macs"}` : "Syncing…"}
+            {lastSync ? `Synced ${syncedAgo(lastSync.at)} · ${lastSync.devices} ${lastSync.devices === 1 ? computer : computers}` : "Syncing…"}
           </button>
           <IconButton icon="gear" label="Settings" active={selection.kind === "settings"} onClick={() => setSelection({ kind: "settings" })} />
-          <IconButton icon="lock" label="Lock (⌘L)" onClick={lock} />
+          <IconButton icon="lock" label={`Lock (${keys.mod}L)`} onClick={lock} />
         </div>
       </aside>
 
@@ -340,7 +341,7 @@ export function VaultScreen({ onLocked }: { onLocked: () => void }) {
               <li className="empty-list">
                 {items.length === 0 ? (
                   <>
-                    No items yet. Press ⌘N to add one, or{" "}
+                    No items yet. Press {keys.mod}N to add one, or{" "}
                     <button className="link" onClick={() => setImporting(true)}>
                       import from 1Password or your browser
                     </button>

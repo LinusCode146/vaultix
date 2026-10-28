@@ -110,11 +110,11 @@ export interface PasswordChange {
   changedAt: number;
 }
 
-/** Settings → This Mac. */
+/** Settings → This computer. */
 export interface AppSettings {
   lockOnSleep: boolean;
   quickSearch: boolean;
-  /** `null`: the app's own folder on this Mac. */
+  /** `null`: the app's own folder on this computer. */
   backupDir: string | null;
 }
 
@@ -190,7 +190,9 @@ export interface PasswordOptions {
 }
 
 export interface TouchIdStatus {
-  /** This Mac has Touch ID with a finger enrolled. */
+  /** Which kind this computer has; `null` on Linux. */
+  kind: "touch-id" | "windows-hello" | null;
+  /** Touch ID with a finger enrolled, or Windows Hello set up. */
   available: boolean;
   enabled: boolean;
   /** Can unlock right now. */
@@ -259,7 +261,7 @@ export interface Api {
   /** Quick search window: copy a field of an item, then hide. */
   quickCopy(id: string, what: QuickCopy): Promise<void>;
   quickHide(giveBackFocus: boolean): Promise<void>;
-  /** ⌘⇧Space showed the quick search window. */
+  /** The quick search shortcut showed its window. */
   onQuickOpened(callback: () => void): () => void;
   /** The website's icon as a `data:` URI, or `null` if it has none. */
   siteIcon(url: string): Promise<string | null>;
@@ -370,7 +372,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
 
 export const isTauri = "__TAURI_INTERNALS__" in window;
 
-/** Which window this is: the main window, or the ⌘⇧Space quick search ("quick"). */
+/** Which window this is: the main window, or the quick search ("quick"). */
 export const windowLabel: string = isTauri
   ? getCurrentWindow().label
   : new URLSearchParams(location.search).has("quick")

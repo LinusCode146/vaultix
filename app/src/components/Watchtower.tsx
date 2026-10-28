@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type StrengthLabel, type WatchtowerIssue, type WatchtowerReport } from "../api";
 import { Icon, type IconName } from "./ui";
+import { computer } from "../platform";
 
 export interface IssueFilter {
   title: string;
@@ -82,7 +83,7 @@ export function Watchtower({ revision, onShowItems, onError }: Props) {
             <Icon name="shield" size={26} /> Watchtower
           </h1>
           <p>
-            Security issues across your vault, checked on this Mac. The score gives an overall idea of how safe your logins are;
+            Security issues across your vault, checked on this {computer}. The score gives an overall idea of how safe your logins are;
             fix the flagged items to raise it.
           </p>
         </div>

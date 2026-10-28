@@ -21,7 +21,7 @@ export type Unavailable = "not-installed" | "app-not-running" | "rejected" | "er
 
 export type LoginsState =
   | { state: "ok"; logins: LoginSummary[] }
-  /** `touchId`: the app can be unlocked with a fingerprint from here. */
+  /** `touchId`: the app can be unlocked with Touch ID or Windows Hello from here. */
   | { state: "locked"; touchId: boolean }
   | { state: "unavailable"; reason: Unavailable; detail?: string };
 
@@ -40,7 +40,7 @@ export type ContentMessage =
   | { type: "getPendingSave" }
   | { type: "resolvePendingSave"; save: boolean }
   | { type: "openApp" }
-  /** Unlock with Touch ID (only sent from a trusted click in the inline menu). */
+  /** Unlock with Touch ID or Windows Hello (only sent from a trusted click in the inline menu). */
   | { type: "unlock" }
   /** The page shows a login form: fill it if the app is waiting to "Open & Fill" this site. */
   | { type: "autoFill"; passwordStep: boolean }

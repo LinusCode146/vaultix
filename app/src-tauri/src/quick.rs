@@ -1,4 +1,4 @@
-//! Quick search: ⌘⇧Space opens a small window over whatever app is in front,
+//! Quick search: ⌘⇧Space (Ctrl+Shift+Space on Windows and Linux) opens a small window over whatever app is in front,
 //! to copy a password, username or one-time code without opening Vaultix.
 //! Copies happen here, so passwords don't pass through the webview.
 
@@ -10,7 +10,9 @@ use crate::commands::{AppState, copy_with_auto_clear};
 pub const LABEL: &str = "quick";
 
 fn shortcut() -> Shortcut {
-    Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::Space)
+    // Win+Shift+Space switches keyboard layouts on Windows.
+    let modifier = if cfg!(target_os = "macos") { Modifiers::SUPER } else { Modifiers::CONTROL };
+    Shortcut::new(Some(modifier | Modifiers::SHIFT), Code::Space)
 }
 
 pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
@@ -23,14 +25,15 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
         .build()
 }
 
-/// Create the (hidden) window and register ⌘⇧Space if it's turned on.
+/// Create the (hidden) window and register the shortcut if it's turned on.
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
         .title("Vaultix")
         .inner_size(640.0, 420.0)
         .resizable(false)
         .decorations(false)
-        // Transparent, so the page can draw rounded corners (needs macOSPrivateApi).
+        // Transparent, so the page can draw rounded corners (needs macOSPrivateApi
+        // on macOS, and a compositor on Linux).
         .transparent(true)
         .shadow(true)
         .always_on_top(true)
@@ -43,7 +46,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Turn ⌘⇧Space on or off (from Settings).
+/// Turn the shortcut on or off (from Settings).
 pub fn set_enabled(app: &AppHandle, enabled: bool) {
     let shortcuts = app.global_shortcut();
     let registered = shortcuts.is_registered(shortcut());
@@ -53,7 +56,7 @@ pub fn set_enabled(app: &AppHandle, enabled: bool) {
         _ => Ok(()),
     };
     if let Err(e) = result {
-        eprintln!("[vaultix] couldn't {} ⌘⇧Space: {e}", if enabled { "register" } else { "unregister" });
+        eprintln!("[vaultix] couldn't {} the quick search shortcut: {e}", if enabled { "register" } else { "unregister" });
     }
 }
 
@@ -76,10 +79,12 @@ pub async fn quick_hide(app: AppHandle, give_back_focus: bool) -> Result<(), Str
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.hide();
     }
-    let main_visible = app.get_webview_window("main").is_some_and(|w| w.is_visible().unwrap_or(false));
-    if give_back_focus && !main_visible {
+    // Elsewhere, hiding the window already returns focus to the previous one.
+    #[cfg(target_os = "macos")]
+    if give_back_focus && !app.get_webview_window("main").is_some_and(|w| w.is_visible().unwrap_or(false)) {
         app.hide().map_err(|e| e.to_string())?;
     }
+    let _ = give_back_focus;
     Ok(())
 }
 

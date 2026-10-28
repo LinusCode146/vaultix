@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, errorMessage, type MasterPasswordCheck } from "../api";
 import { Spinner, StrengthMeter } from "../components/ui";
+import { computer, computers, syncedFolder } from "../platform";
 
 type Mode = "choose" | "create" | "join";
 
@@ -16,15 +17,15 @@ export function Setup({ onDone }: { onDone: () => void }) {
         </div>
         {mode === "choose" && (
           <>
-            <p className="lead">Set up this Mac.</p>
+            <p className="lead">Set up this {computer}.</p>
             <div className="choice-list">
               <button className="choice" onClick={() => setMode("create")}>
                 <strong>Create a new vault</strong>
-                <span>Start fresh. You'll pick a synced folder, such as iCloud Drive, to keep it in.</span>
+                <span>Start fresh. You'll pick a synced folder, such as {syncedFolder}, to keep it in.</span>
               </button>
               <button className="choice" onClick={() => setMode("join")}>
                 <strong>Use an existing vault</strong>
-                <span>Already using Vaultix on another Mac? Point this one at the same folder.</span>
+                <span>Already using Vaultix on another {computer}? Point this one at the same folder.</span>
               </button>
             </div>
           </>
@@ -99,7 +100,7 @@ function CreateForm({ onBack, onCreated }: { onBack: () => void; onCreated: () =
       <label className="field">
         <span className="field-label">Where to keep it</span>
         <FolderPicker value={folder} onChange={setFolder} title="Choose a synced folder for your vault" />
-        <span className="hint">A "Vaultix Vault" folder is created inside. Pick a folder that syncs to your other Macs.</span>
+        <span className="hint">A "Vaultix Vault" folder is created inside. Pick a folder that syncs to your other {computers}.</span>
       </label>
       <label className="field">
         <span className="field-label">Master password</span>

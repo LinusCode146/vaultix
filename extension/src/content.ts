@@ -7,6 +7,7 @@ import { avatar } from "./avatar";
 import { findGroups, findSubmitButton, groupFor, isDisabled, kindIn, newPasswordFields, readSubmission, setValue, type LoginGroup } from "./forms";
 import type { ContentMessage, Credentials, FillResult, GeneratedPassword, LoginsState, LoginSummary, SavePrompt, TabMessage, UnlockResult } from "./messages";
 import { passkeyMenuEntries, startPasskeyBridge } from "./passkeys";
+import { unlockWith } from "./platform";
 
 const send = <T>(msg: ContentMessage): Promise<T> => chrome.runtime.sendMessage(msg) as Promise<T>;
 const isTop = window === window.top;
@@ -103,7 +104,7 @@ const MENU_CSS = `
 :host { all: initial; }
 .menu {
   position: fixed; z-index: 2147483647; min-width: 260px; max-width: 360px;
-  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif;
   color: #1d1d1f; background: #fff; border: 1px solid #d2d2d7; border-radius: 10px;
   box-shadow: 0 8px 28px rgb(0 0 0 / .18); padding: 5px; overflow: hidden;
 }
@@ -213,7 +214,7 @@ async function openMenu(field: HTMLInputElement) {
     }, { text: "🔑" }),
   );
   if (state.state === "locked" && state.touchId) {
-    rows.push(menuRow("Unlock with Touch ID", "Vaultix is locked", () => unlockFromMenu(field), { text: "🔒" }));
+    rows.push(menuRow(`Unlock with ${unlockWith}`, "Vaultix is locked", () => unlockFromMenu(field), { text: "🔒" }));
   } else if (state.state === "locked") {
     rows.push(menuRow("Vaultix is locked", "Click to open Vaultix and unlock", () => {
       send({ type: "openApp" });
@@ -304,7 +305,7 @@ function showMenu(field: HTMLInputElement, rows: MenuRow[]) {
   menu = { host, field, rows, active: -1, reposition };
 }
 
-/** Touch ID prompt, then reopen the menu on the same field, now with logins. */
+/** Touch ID or Windows Hello prompt, then reopen the menu on the same field, now with logins. */
 async function unlockFromMenu(field: HTMLInputElement) {
   closeMenu();
   const result = await send<UnlockResult>({ type: "unlock" });
@@ -438,7 +439,7 @@ const BANNER_CSS = `
 :host { all: initial; }
 .card {
   position: fixed; top: 14px; right: 14px; z-index: 2147483647; width: 320px;
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif;
   color: #1d1d1f; background: #fff; border: 1px solid #d2d2d7; border-radius: 12px;
   box-shadow: 0 10px 32px rgb(0 0 0 / .2); padding: 14px 16px; animation: in .18s ease-out;
 }

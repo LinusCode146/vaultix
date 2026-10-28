@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-/** "system" follows macOS; "light" and "dark" stay put whatever macOS does. */
+/** "system" follows the OS; "light" and "dark" stay put whatever it does. */
 export type ThemePref = "system" | "light" | "dark";
 export type Theme = "light" | "dark";
 

@@ -1,3 +1,6 @@
+// No console window behind the app on Windows (release builds).
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod backup;
 mod commands;
 mod config;
@@ -11,7 +14,9 @@ mod touchid;
 mod tray;
 mod watch;
 
-use tauri::{Manager, RunEvent, WindowEvent};
+#[cfg(target_os = "macos")]
+use tauri::RunEvent;
+use tauri::{Manager, WindowEvent};
 
 use commands::AppState;
 
@@ -19,6 +24,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(quick::plugin())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
@@ -43,8 +49,8 @@ fn main() {
             watch::watch(app.handle(), app.state::<AppState>().vault_dir());
             Ok(())
         })
-        // Closing the window keeps Vaultix running in the menu bar, so the
-        // browser extension can still reach it. Quit with ⌘Q or from the menu bar.
+        // Closing the window keeps Vaultix running in the menu bar (system
+        // tray), so the browser extension can still reach it. Quit from there.
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
@@ -95,10 +101,11 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building Vaultix")
-        .run(|app, event| {
+        .run(|_app, _event| {
             // Clicking the Dock icon while the window is hidden.
-            if let RunEvent::Reopen { has_visible_windows: false, .. } = event {
-                tray::show_window(app);
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Reopen { has_visible_windows: false, .. } = _event {
+                tray::show_window(_app);
             }
         });
 }

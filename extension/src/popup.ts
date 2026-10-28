@@ -1,5 +1,6 @@
 import { avatar } from "./avatar";
 import type { FillResult, PopupMessage, PopupState, UnlockResult } from "./messages";
+import { computer, unlockWith } from "./platform";
 
 const send = <T>(msg: PopupMessage): Promise<T> => chrome.runtime.sendMessage(msg) as Promise<T>;
 const main = document.querySelector("main")!;
@@ -25,10 +26,10 @@ async function render() {
   const { site, logins } = await send<PopupState>({ type: "popupState" });
 
   if (logins.state === "locked" && logins.touchId) {
-    message("Vaultix is locked", "Unlock with your fingerprint to fill passwords.", {
-      label: "Unlock with Touch ID",
+    message("Vaultix is locked", `Unlock with ${unlockWith} to fill passwords.`, {
+      label: `Unlock with ${unlockWith}`,
       run: async () => {
-        message("Touch the sensor…", "Confirm with Touch ID to unlock Vaultix.");
+        message(`Waiting for ${unlockWith}…`, `Confirm with ${unlockWith} to unlock Vaultix.`);
         const result = await send<UnlockResult>({ type: "unlock" });
         if (result.ok || result.error === "touch-id-cancelled") render();
         else openApp();
@@ -42,7 +43,7 @@ async function render() {
   }
   if (logins.state === "unavailable") {
     const text: Record<string, [string, string]> = {
-      "app-not-running": ["Vaultix isn't running", "Start the Vaultix app on this Mac."],
+      "app-not-running": ["Vaultix isn't running", `Start the Vaultix app on this ${computer}.`],
       "not-installed": ["Vaultix isn't connected", "Open the Vaultix app once so it can register with this browser, then reload this page."],
       rejected: ["Connection refused", logins.detail ?? "The Vaultix app didn't accept this browser."],
       error: ["Can't reach Vaultix", logins.detail ?? "Something went wrong talking to the app."],

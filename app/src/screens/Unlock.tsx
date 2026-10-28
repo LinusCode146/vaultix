@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, errorMessage, type Status, type TouchIdStatus } from "../api";
 import { Spinner, TouchIdIcon } from "../components/ui";
+import { biometric, computer, isMac } from "../platform";
 
 const TOUCH_ID_ERRORS: Record<string, string> = {
-  "touch-id-invalidated": "Your fingerprints changed, so Touch ID was turned off. Unlock with your master password to turn it back on.",
-  "touch-id-lockout": "Touch ID is locked after too many attempts. Use your master password.",
-  "touch-id-unavailable": "Touch ID isn't available right now. Use your master password.",
+  "touch-id-invalidated": isMac
+    ? "Your fingerprints changed, so Touch ID was turned off. Unlock with your master password to turn it back on."
+    : "Windows Hello was reset, so Vaultix stopped using it. Turn it on again in Settings.",
+  "touch-id-lockout": `${biometric} is locked after too many attempts. Use your master password.`,
+  "touch-id-unavailable": `${biometric} isn't available right now. Use your master password.`,
   "password-required": "Enter your master password. It's needed every two weeks so you don't forget it.",
 };
 
@@ -28,7 +31,7 @@ export function Unlock({ status, onUnlocked, onForgotten }: { status: Status; on
     } catch (err) {
       const code = errorMessage(err);
       if (code !== "touch-id-cancelled" && code !== "touch-id-busy") {
-        setError(TOUCH_ID_ERRORS[code] ?? "Touch ID didn't work. Use your master password.");
+        setError(TOUCH_ID_ERRORS[code] ?? `${biometric} didn't work. Use your master password.`);
         api.touchIdStatus().then(setTouchId, () => {});
       }
       setTouchBusy(false);
@@ -86,7 +89,7 @@ export function Unlock({ status, onUnlocked, onForgotten }: { status: Status; on
               <span className="touch-id-ring" aria-hidden="true">
                 {touchBusy ? <Spinner /> : <TouchIdIcon size={34} />}
               </span>
-              Unlock with Touch ID
+              Unlock with {biometric}
             </button>
             <div className="or-divider">or use your master password</div>
           </>
@@ -114,7 +117,7 @@ export function Unlock({ status, onUnlocked, onForgotten }: { status: Status; on
           </p>
           {confirmForget ? (
             <p className="hint">
-              Disconnect this Mac from the vault? The vault files stay where they are.{" "}
+              Disconnect this {computer} from the vault? The vault files stay where they are.{" "}
               <button
                 type="button"
                 className="link danger"

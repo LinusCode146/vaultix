@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, errorMessage, type ItemSummary, type QuickCopy, type Status, type TouchIdStatus } from "../api";
 import { Avatar, Spinner, TouchIdIcon, hostOf } from "../components/ui";
+import { biometric, keys, modKey } from "../platform";
 
 const MAX_RESULTS = 8;
 
-/** The ⌘⇧Space window: find a login, copy what's needed, get out of the way. */
+/** The quick search window (⌘⇧Space, or Ctrl+Shift+Space): find a login, copy what's needed, get out of the way. */
 export function QuickSearch() {
   const [status, setStatus] = useState<Status | null>(null);
   const [opened, setOpened] = useState(0);
@@ -23,7 +24,7 @@ export function QuickSearch() {
     return () => offs.forEach((off) => off());
   }, [refresh]);
 
-  // Esc closes; so does clicking another app (unless a Touch ID prompt took the focus).
+  // Esc closes; so does clicking another app (unless a Touch ID or Windows Hello prompt took the focus).
   const busy = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && api.quickHide(false);
@@ -63,7 +64,7 @@ function QuickUnlock({ busy, onUnlocked }: { busy: React.RefObject<boolean>; onU
     } catch (e) {
       const code = errorMessage(e);
       if (code === "password-required") setError("Enter your master password. It's needed every two weeks.");
-      else if (code !== "touch-id-cancelled" && code !== "touch-id-busy") setError("Touch ID didn't work. Use your master password.");
+      else if (code !== "touch-id-cancelled" && code !== "touch-id-busy") setError(`${biometric} didn't work. Use your master password.`);
       input.current?.focus();
     } finally {
       busy.current = false;
@@ -110,7 +111,7 @@ function QuickUnlock({ busy, onUnlocked }: { busy: React.RefObject<boolean>; onU
           onChange={(e) => setPassword(e.target.value)}
         />
         {touchId?.usable && (
-          <button type="button" className="btn touch-id" onClick={withTouchId} disabled={working} title="Unlock with Touch ID">
+          <button type="button" className="btn touch-id" onClick={withTouchId} disabled={working} title={`Unlock with ${biometric}`}>
             {working ? <Spinner /> : <TouchIdIcon />}
           </button>
         )}
@@ -172,7 +173,7 @@ function QuickResults() {
       setActive((a) => (a + step + results.length) % Math.max(results.length, 1));
     } else if (e.key === "Enter" && item) {
       e.preventDefault();
-      if (e.metaKey && item.url) {
+      if (modKey(e) && item.url) {
         api.openAndFill(item.id, item.url).then(() => api.quickHide(false), (err) => setError(errorMessage(err)));
       } else {
         copy(item, e.shiftKey ? "username" : e.altKey ? "totp" : "password");
@@ -208,7 +209,7 @@ function QuickResults() {
               <strong>{item.title || "Untitled"}</strong>
               <span>{item.username || hostOf(item.url)}</span>
             </span>
-            {i === active && <span className="quick-hint">↵ copy password</span>}
+            {i === active && <span className="quick-hint">{keys.enter} copy password</span>}
           </li>
         ))}
         {items && results.length === 0 && <li className="quick-empty">{items.length ? "No matches." : "No logins yet."}</li>}
@@ -216,18 +217,18 @@ function QuickResults() {
       {error && <p className="error-text quick-error">{error}</p>}
       <footer className="quick-footer">
         <span>
-          <kbd>↵</kbd> password
+          <kbd>{keys.enter}</kbd> password
         </span>
         <span>
-          <kbd>⇧↵</kbd> username
+          <kbd>{keys.shift + keys.enter}</kbd> username
         </span>
         {results[active]?.hasTotp && (
           <span>
-            <kbd>⌥↵</kbd> one-time code
+            <kbd>{keys.alt + keys.enter}</kbd> one-time code
           </span>
         )}
         <span>
-          <kbd>⌘↵</kbd> open & fill
+          <kbd>{keys.mod + keys.enter}</kbd> open & fill
         </span>
         <span className="quick-footer-end">Clipboard clears after 30 s</span>
       </footer>

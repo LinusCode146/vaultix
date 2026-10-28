@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, errorMessage, type Category, type FieldValue, type FileRef, type ItemView, type PasswordChange, type TotpCode } from "../api";
 import { CategoryIcon, categoryDef, fieldDef, formatSize, groupDigits, isExpired, mergeFields } from "../categories";
 import { Avatar, CopyButton, CountdownRing, Icon, IconButton, StrengthIndicator, formatCode, hostOf } from "./ui";
+import { keys, modKey } from "../platform";
 
 interface Props {
   id: string;
@@ -28,16 +29,16 @@ export function ItemDetail({ id, revision, onEdit, onChanged, onDeleted, onMissi
       .getItem(id)
       .then(setItem)
       .catch((e) =>
-        // Deleted on another Mac and picked up by sync.
+        // Deleted on another computer and picked up by sync.
         errorMessage(e).includes("item not found") ? callbacks.current.onMissing() : callbacks.current.onError(e),
       );
   }, [id, revision]);
 
-  // ⌘E to edit.
+  // ⌘E (Ctrl+E) to edit.
   useEffect(() => {
     if (!item) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "e") {
+      if (modKey(e) && e.key === "e") {
         e.preventDefault();
         onEdit(item);
       }
@@ -113,7 +114,7 @@ export function ItemDetail({ id, revision, onEdit, onChanged, onDeleted, onMissi
         >
           <Icon name="star" filled={item.favorite} />
         </button>
-        <button className="btn header-btn" onClick={() => onEdit(item)} title="Edit (⌘E)">
+        <button className="btn header-btn" onClick={() => onEdit(item)} title={`Edit (${keys.mod}E)`}>
           Edit
         </button>
       </header>

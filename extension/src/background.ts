@@ -25,7 +25,7 @@ import type {
 
 const HOST = "app.vaultix.native";
 const REQUEST_TIMEOUT_MS = 10_000;
-/** Touch ID waits for the user, who may take a while to reach the sensor. */
+/** Touch ID and Windows Hello wait for the user, who may take a while to reach the sensor. */
 const UNLOCK_TIMEOUT_MS = 90_000;
 /** How long a "save this login?" offer survives a page navigation. */
 const PENDING_SAVE_TTL_MS = 2 * 60_000;
@@ -154,7 +154,7 @@ async function loginsFor(url: string | undefined): Promise<LoginsState> {
   }
 }
 
-// One Touch ID prompt at a time, however many frames or tabs ask.
+// One Touch ID or Windows Hello prompt at a time, however many frames or tabs ask.
 let unlocking: Promise<UnlockResult> | null = null;
 function unlock(): Promise<UnlockResult> {
   unlocking ??= request("unlock_touch_id", {}, UNLOCK_TIMEOUT_MS)

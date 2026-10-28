@@ -12,9 +12,10 @@
 //! Fill waiting for this page?", must not start the app on every page.
 //!
 //! Both sides use the same framing: a u32 length (native byte order, which is
-//! little-endian on every Mac) followed by that many bytes of JSON.
+//! little-endian on every supported computer) followed by that many bytes of JSON.
 
 use std::io::{self, Read, Write};
+#[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::process::Command;
@@ -22,6 +23,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
+#[cfg(windows)]
+use uds_windows::UnixStream;
 
 const APP_BUNDLE_ID: &str = "app.vaultix.desktop";
 const MAX_FRAME: usize = 1024 * 1024;
@@ -61,9 +64,10 @@ fn main() {
     }
 }
 
+/// The app's config folder, as Tauri picks it: ~/Library/Application Support
+/// on macOS, %APPDATA% on Windows, $XDG_CONFIG_HOME or ~/.config on Linux.
 fn socket_path() -> PathBuf {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-    home.join("Library/Application Support").join(APP_BUNDLE_ID).join("native.sock")
+    dirs::config_dir().unwrap_or_default().join(APP_BUNDLE_ID).join("native.sock")
 }
 
 /// Connect to the app; if it isn't running, launch it when the extension asks to.
@@ -77,8 +81,7 @@ fn connect(stdout: &mut impl Write) -> io::Result<UnixStream> {
     if answer["type"] != "launch" {
         return Err(io::Error::other("app not running, and not asked to launch it"));
     }
-    // Only works for the installed app bundle, not for `tauri dev` builds.
-    let _ = Command::new("/usr/bin/open").args(["-g", "-b", APP_BUNDLE_ID]).status();
+    launch_app();
     let deadline = Instant::now() + Duration::from_secs(8);
     loop {
         match UnixStream::connect(&path) {
@@ -88,6 +91,43 @@ fn connect(stdout: &mut impl Write) -> io::Result<UnixStream> {
         }
     }
 }
+
+/// Start the app in the background. On macOS, only works for the installed app
+/// bundle, not for `tauri dev` builds.
+#[cfg(target_os = "macos")]
+fn launch_app() {
+    let _ = Command::new("/usr/bin/open").args(["-g", "-b", APP_BUNDLE_ID]).status();
+}
+
+/// Start the app, installed next to this program, detached from the browser:
+/// its own process group, and none of the browser's pipes.
+#[cfg(not(target_os = "macos"))]
+fn launch_app() {
+    use std::process::Stdio;
+    let Some(app) = std::env::current_exe().ok().and_then(|exe| Some(exe.parent()?.join(APP_BINARY))) else { return };
+    let mut command = Command::new(app);
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        // Out of the browser's job, so closing the browser doesn't end the app;
+        // if the job doesn't allow that, start it anyway.
+        command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB);
+        if command.spawn().is_ok() {
+            return;
+        }
+        command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+    }
+    let _ = command.spawn();
+}
+
+#[cfg(not(target_os = "macos"))]
+const APP_BINARY: &str = if cfg!(windows) { "vaultix.exe" } else { "vaultix" };
 
 fn read_frame(r: &mut impl Read) -> io::Result<Vec<u8>> {
     let mut len = [0u8; 4];

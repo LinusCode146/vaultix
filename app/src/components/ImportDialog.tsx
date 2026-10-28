@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, errorMessage, type ImportPreview } from "../api";
 import { CategoryIcon, categoryDef } from "../categories";
 import { IconButton, Spinner } from "./ui";
+import { trashName } from "../platform";
 
 const SOURCES: { name: string; how: string }[] = [
   { name: "1Password", how: "File → Export → your account, then choose the 1PUX format." },
@@ -185,7 +186,9 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
             {step.source !== "KeePass" && (
               <div className={step.trashed ? "notice" : "notice warn"}>
                 {step.trashed ? (
-                  <p>The export file is in the Trash. Empty the Trash to delete it for good.</p>
+                  <p>
+                    The export file is in the {trashName}. Empty the {trashName} to delete it for good.
+                  </p>
                 ) : (
                   <>
                     <p>
@@ -200,7 +203,7 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
                         )
                       }
                     >
-                      Move it to the Trash
+                      Move it to the {trashName}
                     </button>
                   </>
                 )}

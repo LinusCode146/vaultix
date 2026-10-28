@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type AppSettings, type Backups, type TouchIdStatus } from "../api";
+import { biometric, computer, fileManager, isMac, keys, systemName } from "../platform";
 import { setThemePref, useTheme, type ThemePref } from "../theme";
 import { ImportDialog } from "./ImportDialog";
 import { RestoreDialog } from "./RestoreDialog";
@@ -12,7 +13,10 @@ const THEMES: { id: ThemePref; label: string }[] = [
 ];
 
 const ENROLL_ERRORS: Record<string, string> = {
-  "touch-id-unavailable": "Touch ID isn't available. Add a fingerprint in System Settings → Touch ID & Password.",
+  "touch-id-unavailable": isMac
+    ? "Touch ID isn't available. Add a fingerprint in System Settings → Touch ID & Password."
+    : "Windows Hello isn't set up. Set it up in Settings → Accounts → Sign-in options.",
+  "touch-id-cancelled": `${biometric} was cancelled.`,
 };
 
 export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) => void; onVaultChanged: () => void }) {
@@ -50,7 +54,7 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
     } catch (e) {
       const code = errorMessage(e);
       if (code === "locked") onError(e);
-      else setError(ENROLL_ERRORS[code] ?? `Couldn't turn on Touch ID (${code}).`);
+      else setError(ENROLL_ERRORS[code] ?? `Couldn't turn on ${biometric} (${code}).`);
     } finally {
       setBusy(false);
     }
@@ -64,7 +68,7 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
         </span>
         <div className="detail-title">
           <h1>Settings</h1>
-          <span className="item-sub">This Mac</span>
+          <span className="item-sub">This {computer}</span>
         </div>
       </header>
 
@@ -73,7 +77,7 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
           <Icon name="moon" size={26} />
           <div className="setting-text">
             <strong>Appearance</strong>
-            <p className="muted">Light or dark, or follow macOS. The moon and sun next to the Vaultix name switch it quickly.</p>
+            <p className="muted">Light or dark, or follow {systemName}. The moon and sun next to the Vaultix name switch it quickly.</p>
           </div>
           <div className="segmented" role="radiogroup" aria-label="Appearance">
             {THEMES.map((t) => (
@@ -93,41 +97,48 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
       </section>
 
       <section className="card">
-        <div className="setting">
-          <TouchIdIcon size={26} />
-          <div className="setting-text">
-            <strong>Unlock with Touch ID</strong>
-            <p className="muted">
-              Unlock Vaultix, here and from the browser extension, with your fingerprint. The key stays in this Mac's Secure
-              Enclave, and your master password is still asked for every two weeks.
-            </p>
-            {touchId && !touchId.available && (
-              <p className="warn-text">This Mac has no Touch ID, or no fingerprint is set up in System Settings.</p>
-            )}
-            {touchId?.enabled && touchId.passwordRequired && (
-              <p className="warn-text">Lock and unlock once with your master password to use Touch ID again.</p>
-            )}
-            {error && <p className="error-text">{error}</p>}
+        {biometric && (
+          <div className="setting">
+            <TouchIdIcon size={26} />
+            <div className="setting-text">
+              <strong>Unlock with {biometric}</strong>
+              <p className="muted">
+                {isMac
+                  ? "Unlock Vaultix, here and from the browser extension, with your fingerprint. The key stays in this Mac's Secure Enclave, and your master password is still asked for every two weeks."
+                  : "Unlock Vaultix, here and from the browser extension, with your face, fingerprint or PIN. The key stays in this computer's security chip, and your master password is still asked for every two weeks."}
+              </p>
+              {touchId && !touchId.available && (
+                <p className="warn-text">
+                  {isMac
+                    ? "This Mac has no Touch ID, or no fingerprint is set up in System Settings."
+                    : "Windows Hello isn't set up on this computer. Set it up in Settings → Accounts → Sign-in options."}
+                </p>
+              )}
+              {touchId?.enabled && touchId.passwordRequired && (
+                <p className="warn-text">Lock and unlock once with your master password to use {biometric} again.</p>
+              )}
+              {error && <p className="error-text">{error}</p>}
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!touchId?.enabled}
+              aria-label={`Unlock with ${biometric}`}
+              className={`switch${touchId?.enabled ? " on" : ""}`}
+              disabled={!touchId || busy || (!touchId.available && !touchId.enabled)}
+              onClick={toggle}
+            >
+              {busy ? <Spinner /> : <span className="knob" />}
+            </button>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={!!touchId?.enabled}
-            aria-label="Unlock with Touch ID"
-            className={`switch${touchId?.enabled ? " on" : ""}`}
-            disabled={!touchId || busy || (!touchId.available && !touchId.enabled)}
-            onClick={toggle}
-          >
-            {busy ? <Spinner /> : <span className="knob" />}
-          </button>
-        </div>
+        )}
         <div className="setting">
           <Icon name="lock" size={26} />
           <div className="setting-text">
-            <strong>Lock when your Mac sleeps</strong>
+            <strong>Lock when your {computer} sleeps</strong>
             <p className="muted">Also when the screen locks or another user switches in. Vaultix still locks after 5 idle minutes either way.</p>
           </div>
-          <Switch label="Lock when your Mac sleeps" on={!!settings?.lockOnSleep} disabled={!settings} onChange={(on) => change({ lockOnSleep: on })} />
+          <Switch label={`Lock when your ${computer} sleeps`} on={!!settings?.lockOnSleep} disabled={!settings} onChange={(on) => change({ lockOnSleep: on })} />
         </div>
       </section>
 
@@ -136,13 +147,14 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
           <Icon name="search" size={26} />
           <div className="setting-text">
             <strong>
-              Quick search <kbd>⌘</kbd>
-              <kbd>⇧</kbd>
+              Quick search <kbd>{isMac ? "⌘" : "Ctrl"}</kbd>
+              <kbd>{isMac ? "⇧" : "Shift"}</kbd>
               <kbd>Space</kbd>
             </strong>
             <p className="muted">
-              Find a login from any app and copy its password with ↵, username with ⇧↵ or one-time code with ⌥↵, without
-              opening this window.
+              Find a login from any app and copy its password with {keys.enter}, username with {keys.shift}
+              {keys.enter} or one-time code with {keys.alt}
+              {keys.enter}, without opening this window.
             </p>
           </div>
           <Switch label="Quick search" on={!!settings?.quickSearch} disabled={!settings} onChange={(on) => change({ quickSearch: on })} />
@@ -156,7 +168,7 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
           <Icon name="arrowRight" size={26} />
           <div className="setting-text">
             <strong>Import</strong>
-            <p className="muted">Bring your passwords over from 1Password, Chrome, Edge, Safari, Firefox or Bitwarden.</p>
+            <p className="muted">Bring your passwords over from 1Password, KeePass, Chrome, Edge, Safari, Firefox or Bitwarden.</p>
           </div>
           <button className="btn" onClick={() => setDialog("import")}>
             Import…
@@ -226,7 +238,7 @@ function BackupsCard({
         <div className="setting-text">
           <strong>Backups</strong>
           <p className="muted">
-            Once a day, Vaultix keeps an encrypted copy of your vault on this Mac, outside the synced folder: the last two
+            Once a day, Vaultix keeps an encrypted copy of your vault on this {computer}, outside the synced folder: the last two
             weeks, then one a month for a year.
           </p>
           <p className="muted small">
@@ -242,7 +254,7 @@ function BackupsCard({
               Restore…
             </button>
             <button className="btn plain" onClick={() => api.revealBackups().catch(onError)}>
-              Show in Finder
+              Show in {fileManager}
             </button>
             <button
               className="btn plain"
@@ -282,7 +294,7 @@ export function TouchIdOffer({ onDone }: { onDone: () => void }) {
   return (
     <div className="banner offer" role="status">
       <TouchIdIcon />
-      <span>Unlock Vaultix with Touch ID next time?</span>
+      <span>Unlock Vaultix with {biometric} next time?</span>
       {error && <span className="error-text">{error}</span>}
       <span className="row-end">
         <button className="btn" onClick={onDone} disabled={busy}>

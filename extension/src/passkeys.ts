@@ -8,6 +8,7 @@
 
 import { avatar } from "./avatar";
 import type { ContentMessage, PageRequest, PageResponse, PasskeyCreateOptions, PasskeyGetOptions, PasskeyResult, PasskeysState, PasskeySummary, PasskeyTargets, UnlockResult } from "./messages";
+import { unlockWith } from "./platform";
 
 const send = <T>(msg: ContentMessage): Promise<T> => chrome.runtime.sendMessage(msg) as Promise<T>;
 
@@ -127,7 +128,7 @@ async function get(id: number, o: PasskeyGetOptions) {
       for (const pk of s.passkeys) p.list.append(passkeyRow(pk, () => use(p, o, pk)));
     } else if (s.state === "locked") {
       p.list.append(
-        row(s.touchId ? "Unlock with Touch ID" : "Vaultix is locked", s.touchId ? "To use your passkeys" : "Click to open Vaultix and unlock", "🔒", async () => {
+        row(s.touchId ? `Unlock with ${unlockWith}` : "Vaultix is locked", s.touchId ? "To use your passkeys" : "Click to open Vaultix and unlock", "🔒", async () => {
           if (await unlock(p, s.touchId)) show(await getPasskeys(o, o.allow));
         }),
       );
@@ -191,7 +192,7 @@ const PROMPT_CSS = `
 :host { all: initial; }
 .card {
   position: fixed; top: 14px; right: 14px; z-index: 2147483647; width: 340px; box-sizing: border-box;
-  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif;
   color: #1d1d1f; background: #fff; border: 1px solid #d2d2d7; border-radius: 12px;
   box-shadow: 0 10px 32px rgb(0 0 0 / .2); padding: 14px 16px; animation: in .18s ease-out;
 }
@@ -303,10 +304,10 @@ function otherOptions(p: Prompt) {
   return button("Other options", "link", () => finish(p, { action: "fallback" }));
 }
 
-/** Touch ID, or bring the app forward to type the master password. */
+/** Touch ID or Windows Hello, or bring the app forward to type the master password. */
 async function unlock(p: Prompt, touchId: boolean): Promise<boolean> {
   if (touchId) {
-    p.status.textContent = "Waiting for Touch ID…";
+    p.status.textContent = `Waiting for ${unlockWith}…`;
     const result = await send<UnlockResult>({ type: "unlock" }).catch(() => ({ ok: false, error: "" }));
     if (result.ok) {
       p.status.textContent = "";

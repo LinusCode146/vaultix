@@ -1,4 +1,5 @@
-//! The menu-bar icon: Vaultix keeps running there after its window is closed.
+//! The menu-bar (system tray) icon: Vaultix keeps running there after its
+//! window is closed.
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -12,12 +13,12 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     // Shown with ⌘⇧Space next to it, but that shortcut is global, not a menu one.
     let quick = MenuItem::with_id(app, "quick", "Quick Search", true, Some("CmdOrCtrl+Shift+Space"))?;
     let lock = MenuItem::with_id(app, "lock", "Lock", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Vaultix", true, Some("CmdOrCtrl+Q"))?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Vaultix", true, cfg!(target_os = "macos").then_some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(app, &[&open, &quick, &lock, &PredefinedMenuItem::separator(app)?, &quit])?;
 
     TrayIconBuilder::with_id("main")
-        .icon(icon())
-        .icon_as_template(true)
+        .icon(icon(app))
+        .icon_as_template(cfg!(target_os = "macos"))
         .tooltip("Vaultix")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -42,10 +43,22 @@ pub fn show_window(app: &AppHandle) {
     }
 }
 
+/// The app icon in color on Windows and Linux, where tray icons are usually
+/// colored and the taskbar may be light or dark.
+#[cfg(not(target_os = "macos"))]
+fn icon(app: &AppHandle) -> Image<'static> {
+    app.default_window_icon().cloned().map(Image::to_owned).unwrap_or_else(dial)
+}
+
+#[cfg(target_os = "macos")]
+fn icon(_app: &AppHandle) -> Image<'static> {
+    dial()
+}
+
 /// The logo's dial (ring, three spokes, hub) in black on transparent, drawn
 /// here rather than shipped as a file. As a template image, macOS colors it to
 /// match the menu bar.
-fn icon() -> Image<'static> {
+fn dial() -> Image<'static> {
     const SIZE: usize = 36; // 18 pt at 2x
     let c = SIZE as f32 / 2.0;
     let spokes = [90f32, 210.0, 330.0].map(|deg| {

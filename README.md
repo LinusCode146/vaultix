@@ -1,18 +1,19 @@
 # Vaultix
 
-A password manager for macOS: a desktop app plus a browser extension with
-autofill, one-time codes and passkeys. Your vault syncs between Macs through a
-folder you already sync (iCloud Drive, Dropbox, Syncthing), with no server and
-no account.
+A password manager for macOS, Windows and Linux: a desktop app plus a browser
+extension with autofill, one-time codes and passkeys. Your vault syncs between
+computers through a folder you already sync (iCloud Drive, OneDrive, Dropbox,
+Syncthing), with no server and no account.
 
 ## Features
 
 - Logins, credit cards, secure notes, identities, documents and API credentials
-- Touch ID unlock; locks when idle, on sleep and on screen lock
+- Touch ID (macOS) or Windows Hello unlock; locks when idle, on sleep and on
+  screen lock
 - Browser extension for Chrome, Edge, Brave, Arc and Vivaldi: autofill,
   "save this login?", strong passwords on sign-up forms, and passkeys
 - One-time codes (TOTP), added by scanning a QR code on screen or in an image
-- ⌘⇧Space quick search from any app
+- Quick search from any app: ⌘⇧Space, or Ctrl+Shift+Space on Windows and Linux
 - Watchtower: weak, reused and http-only passwords, and sites that offer
   two-factor codes or passkeys you haven't set up
 - Import from 1Password (`.1pux`, CSV), KeePass and KeePassXC (`.kdbx`,
@@ -24,8 +25,17 @@ no account.
 
 Download the app and the extension from
 [Releases](https://github.com/LinusCode146/vaultix/releases). The release notes
-explain how to open the app the first time and load the extension. Requires a
-Mac with Apple silicon and macOS 13 or later.
+explain how to open the app the first time and load the extension.
+
+- **macOS:** Apple silicon, macOS 13 or later.
+- **Windows:** Windows 10 (1803) or 11, x64. The installer isn't code-signed
+  yet, so SmartScreen asks first: More info → Run anyway.
+- **Linux:** x64 `.deb` (Debian, Ubuntu) or `.rpm` (Fedora, openSUSE). The
+  extension works with Chrome, Edge, Brave, Vivaldi and Chromium installed from
+  their packages; Snap and Flatpak browsers can't start the helper the
+  extension needs. On Wayland, some desktops don't allow the global shortcut
+  or reading the screen for QR codes: open quick search from the tray icon, and
+  add QR codes from a screenshot.
 
 ## Security
 
@@ -35,17 +45,20 @@ Mac with Apple silicon and macOS 13 or later.
 - Everything is encrypted with XChaCha20-Poly1305, including titles, URLs and
   usernames. Nothing is stored in plaintext.
 - The extension talks to the app through a native messaging host. The app
-  checks the code signatures of the host and the browser, and only returns
-  logins that match the URL the browser reports for the page.
+  checks that the caller is its own host, started by a genuine browser (by its
+  code signature on macOS and Windows; on Linux, by being installed where only
+  root can change it), and only returns logins that match the URL the browser
+  reports for the page.
 - All security-relevant logic lives in `crates/vaultix-core`; the UI and the
   extension never see the vault key.
 
 ## How sync works
 
-Each Mac appends encrypted changes to its own log file in the vault folder, so
-no two Macs ever write the same file. Every Mac replays all logs and keeps the
-newest change per item. The app syncs as soon as another Mac's changes arrive
-in the folder.
+Each computer appends encrypted changes to its own log file in the vault
+folder, so no two ever write the same file. Every computer replays all logs and
+keeps the newest change per item. The app syncs as soon as another computer's
+changes arrive in the folder. Macs, Windows PCs and Linux machines can share
+one vault.
 
 ## Development
 
@@ -66,8 +79,13 @@ cd extension && npm install
 npm run build                   # then load extension/dist as an unpacked extension
 ```
 
+On Linux, install Tauri's [system
+packages](https://tauri.app/start/prerequisites/#linux) first.
+
 `scripts/release.sh` builds and signs `Vaultix.app`. With a Developer ID it also
-notarizes it and makes a `.dmg`; see the script's header for setup.
+notarizes it and makes a `.dmg`; see the script's header for setup. Pushing a
+`v*` tag builds the Windows installer and the Linux packages on GitHub Actions
+and attaches them to that release.
 
 ## License
 

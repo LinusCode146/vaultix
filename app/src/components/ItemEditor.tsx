@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, errorMessage, type Category, type FieldValue, type FileRef, type ItemView, type PasswordOptions, type StrengthView, type TotpCode } from "../api";
 import { CategoryIcon, categoryDef, fieldDef, formatSize, groupDigits, mergeFields, normalizeMonthYear } from "../categories";
 import { Avatar, Icon, IconButton, Spinner, StrengthIndicator, formatCode, hostOf } from "./ui";
+import { computers, keys, modKey } from "../platform";
 
 interface Props {
   /** `null` for a new item. */
@@ -20,6 +21,7 @@ const QR_ERRORS: Record<string, string> = {
     "To scan your screen, Vaultix needs Screen Recording permission: System Settings → Privacy & Security → Screen & System Audio Recording. Or take a screenshot and use From image….",
   "qr-not-totp": "That QR code isn't a two-factor setup code.",
   "qr-migration": "That's a Google Authenticator export code. Scan the website's own setup QR code instead.",
+  "qr-screen-unavailable": "This desktop doesn't let apps read the screen. Take a screenshot and use From image… instead.",
   "qr-failed": "Couldn't read that. Try a screenshot with From image….",
 };
 
@@ -89,10 +91,10 @@ export function ItemEditor({ item, category: newCategory = "login", website, onS
     return () => clearTimeout(t);
   }, [password, username, title, urls]);
 
-  // ⌘S saves, Esc cancels.
+  // ⌘S (Ctrl+S) saves, Esc cancels.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === "s") {
+      if (modKey(e) && e.key === "s") {
         e.preventDefault();
         formRef.current?.requestSubmit();
       } else if (e.key === "Escape" && !showGenerator) {
@@ -332,7 +334,7 @@ export function ItemEditor({ item, category: newCategory = "login", website, onS
               {attaching ? <Spinner /> : null} {files[0] ? "Replace…" : "Choose file…"}
             </button>
           </EditRow>
-          <p className="row-note">Stored encrypted in your vault folder, and synced to your other Macs. Up to 100 MB.</p>
+          <p className="row-note">Stored encrypted in your vault folder, and synced to your other {computers}. Up to 100 MB.</p>
         </section>
       )}
 
@@ -358,7 +360,7 @@ export function ItemEditor({ item, category: newCategory = "login", website, onS
 
       {error && <p className="error-text">{error}</p>}
       <footer className="detail-footer">
-        <span className="muted small">⌘S to save · Esc to cancel</span>
+        <span className="muted small">{keys.mod}S to save · Esc to cancel</span>
         <span className="row-end">
           <button type="button" className="btn" onClick={onCancel} disabled={saving}>
             Cancel
