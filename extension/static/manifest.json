@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Vaultix",
+  "version": "0.1.0",
+  "description": "Fill and save passwords with the Vaultix app.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0/tB08eIORyC8+P8co3YQ/7m4Ne1vy0lvoWmgkZ09B6dnHVjWYuix3YVIAHIbPGJ4m44rGV3l4hCK7WSD6LFVHNGK1Rbk704cIWxleB2Rrukdomouhpv6LhlAEZQA1FI7igwABDkK0rcU8oTaYqzPixUc1oJrlBJTyBM0Wi9MAmAACJF9ZIgEhAfoWX0ch44plVu8E0moiyXBI8eBnLD1eDfY1E0qDglfBK5ktD+Zw/VTrTm7XGvW76O8WWw6FRnaeKw/YZlY9R83X7potZcJ2grjkrY8vq3i4cZHc+wQmV7yxt54d6U+mXzFDTtWv/JtoGhZwTiQ4t2v2AFWzgufwIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "nativeMessaging",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["page.js"],
+      "all_frames": true,
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://*/*",
+        "http://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Vaultix",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "commands": {
+    "fill-login": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Fill the login for this page"
+    }
+  }
+}

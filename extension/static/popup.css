@@ -1,0 +1,31 @@
+:root {
+  --bg: #fff; --text: #1d1d1f; --muted: #6e6e76; --border: #e2e2e7; --hover: #f0f2fd; --accent: #3b5bdb;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #26262a; --text: #ececf0; --muted: #9a9aa3; --border: #36363c; --hover: #323a63; --accent: #6d8bff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; width: 320px; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); }
+header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+main { padding: 6px; min-height: 60px; }
+footer { padding: 6px 12px 10px; border-top: 1px solid var(--border); }
+p { margin: 0; }
+.loading, .site { color: var(--muted); padding: 6px 8px; font-size: 12px; }
+ul { list-style: none; margin: 0; padding: 0; }
+button { font: inherit; color: inherit; }
+.login { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: none; border-radius: 7px; background: none; text-align: left; cursor: pointer; }
+.login:hover, .login:focus-visible { background: var(--hover); outline: none; }
+.avatar { flex: none; width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 600; background: linear-gradient(160deg, #5c7cfa, #364fc7); overflow: hidden; }
+.avatar.logo { background: #fff; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .08); }
+.avatar.logo img { width: 100%; height: 100%; object-fit: contain; }
+.text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.title, .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title { font-weight: 500; }
+.sub { color: var(--muted); font-size: 12px; }
+.fill { color: var(--accent); font-weight: 500; font-size: 12px; opacity: 0; }
+.login:hover .fill, .login:focus-visible .fill { opacity: 1; }
+.message { padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.message p { color: var(--muted); }
+.primary { margin-top: 4px; padding: 5px 12px; border-radius: 6px; border: none; background: var(--accent); color: #fff; font-weight: 500; cursor: pointer; }
+.link { border: none; background: none; padding: 0; color: var(--accent); cursor: pointer; font-size: 12px; }

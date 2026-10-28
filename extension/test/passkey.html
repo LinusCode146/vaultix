@@ -1,0 +1,48 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Passkeys</title><style>body{font:15px system-ui,sans-serif;max-width:460px;margin:40px auto;padding:0 16px}label{display:block;margin:12px 0 4px}input{width:100%;padding:8px;font:inherit;box-sizing:border-box}button{margin:16px 8px 0 0;padding:8px 16px;font:inherit;border:1px solid #888;border-radius:6px;cursor:pointer}pre{white-space:pre-wrap;word-break:break-all;background:#f3f3f6;padding:10px;border-radius:6px;font-size:12px}</style>
+<!-- page.js runs at document_start in the real extension, before the page's own scripts -->
+<script src="../dist/page.js"></script><script src="build/stub.js"></script></head><body>
+<h1>Passkeys</h1>
+<p>Add <code>?running=0</code> (Vaultix not running), <code>?locked&amp;touchid</code>, or <code>?haspasskey</code>, <code>?conditional</code> (passkeys in the username field's menu).</p>
+<form id="login" onsubmit="event.preventDefault()"><label for="u">Username</label><input id="u" name="username" autocomplete="username webauthn"><label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password"></form>
+<button id="create">Add a passkey</button><button id="signin">Sign in with a passkey</button>
+<pre id="out"></pre>
+<script>
+const enc = (s) => new TextEncoder().encode(s);
+const dec = (b) => new TextDecoder().decode(b);
+const out = document.getElementById("out");
+const ids = [];
+function show(label, cred) {
+  "use strict";
+  // What @github/webauthn-json does to every credential it gets back.
+  const original = cred.toJSON.bind(cred);
+  cred.toJSON = () => original();
+  cred.response.transports = cred.response.getTransports?.() ?? [];
+  cred.clientExtensionResults = cred.getClientExtensionResults();
+  out.textContent = label + "\n" + JSON.stringify({
+    isPublicKeyCredential: cred instanceof PublicKeyCredential,
+    id: cred.id,
+    rawIdBytes: cred.rawId.byteLength,
+    clientData: JSON.parse(dec(cred.response.clientDataJSON)),
+    attestation: cred.response instanceof AuthenticatorAttestationResponse,
+    userHandle: cred.response.userHandle ? dec(cred.response.userHandle) : undefined,
+    algorithm: cred.response.getPublicKeyAlgorithm?.(),
+    json: cred.toJSON(),
+  }, null, 2);
+}
+const fail = (label) => (e) => (out.textContent = label + " failed: " + e.name + ": " + e.message);
+document.getElementById("create").onclick = () =>
+  navigator.credentials.create({ publicKey: {
+    rp: { name: "Example" }, user: { id: enc("user-42"), name: "alice@example.com", displayName: "Alice" },
+    challenge: enc("register-" + Date.now()), pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+    excludeCredentials: ids.map((id) => ({ type: "public-key", id })), extensions: { credProps: true },
+  } }).then((c) => { ids.push(c.rawId); show("created", c); }, fail("create"));
+document.getElementById("signin").onclick = () =>
+  navigator.credentials.get({ publicKey: { challenge: enc("sign-in-" + Date.now()), userVerification: "required" } })
+    .then((c) => show("signed in", c), fail("get"));
+if (location.search.includes("conditional")) {
+  window.__conditional = new AbortController();
+  navigator.credentials.get({ mediation: "conditional", signal: window.__conditional.signal, publicKey: { challenge: enc("conditional") } })
+    .then((c) => show("signed in (autofill)", c), fail("conditional get"));
+}
+</script>
+<script src="../dist/content.js"></script></body></html>

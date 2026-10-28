@@ -1,0 +1,17 @@
+# Rust build output
+/target
+# Node
+node_modules/
+# Build output
+/app/dist
+/app/src-tauri/gen
+/extension/dist
+/extension/test/build
+# IDE
+.idea/
+*.iml
+.DS_Store
+# Release output
+/dist
+# Local Claude Code settings
+.claude/

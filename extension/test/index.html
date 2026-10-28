@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Vaultix fixtures</title><style>body{font:15px system-ui,sans-serif;max-width:520px;margin:40px auto;padding:0 16px}li{margin:6px 0}</style></head><body>
+<h1>Vaultix autofill fixtures</h1>
+<p>Each page loads a fake extension API, then the real content script. Logins offered: "Example" (with one-time code) and "Example (work)".</p>
+<ul>
+<li><a href="login.html">Classic login form</a> (<a href="login.html?locked">locked</a>)</li>
+<li><a href="username-first.html">Username-first sign-in</a></li>
+<li><a href="otp.html">One-time code</a></li>
+<li><a href="signup.html">Sign-up form</a>: suggests a strong password on new-password fields, offers to save</li>
+<li><a href="signup-plain.html">Sign-up without hints</a> (Password + Confirm): suggests a password for both</li>
+<li><a href="change-password.html">Change password</a>: fills new and repeat, never the current password</li>
+<li><a href="newsletter.html">Newsletter and search</a>: should show nothing</li>
+<li><a href="spa.html">No form element, div button</a></li>
+</ul></body></html>
