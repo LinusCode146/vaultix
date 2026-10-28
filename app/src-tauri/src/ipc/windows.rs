@@ -58,7 +58,7 @@ pub fn install_manifests(manifest: &Value) -> Vec<PathBuf> {
     let mut written = Vec::new();
     for browser in BROWSER_KEYS {
         let key = format!(r"Software\{browser}\NativeMessagingHosts\{HOST_NAME}");
-        let ok = software.create_subkey(&key).and_then(|(k, _)| k.set_value("", file.as_os_str())).is_ok();
+        let ok = software.create_subkey(&key).and_then(|(k, _)| k.set_value("", &file.to_string_lossy().into_owned())).is_ok();
         if ok {
             written.push(PathBuf::from(format!(r"HKCU\{key}")));
         }
@@ -192,7 +192,7 @@ unsafe fn signer_name(state: HANDLE) -> Option<String> {
         if provider.is_null() {
             return None;
         }
-        let signer = WTHelperGetProvSignerFromChain(provider, 0, false.into(), 0);
+        let signer = WTHelperGetProvSignerFromChain(provider, 0, false, 0);
         if signer.is_null() || (*signer).csCertChain == 0 || (*signer).pasCertChain.is_null() {
             return None;
         }

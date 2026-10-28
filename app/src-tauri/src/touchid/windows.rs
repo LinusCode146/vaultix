@@ -23,7 +23,7 @@ use super::TouchIdError;
 const CREDENTIAL: &str = "Vaultix";
 
 pub fn available() -> bool {
-    KeyCredentialManager::IsSupportedAsync().and_then(|op| op.get()).unwrap_or(false)
+    KeyCredentialManager::IsSupportedAsync().and_then(|op| op.join()).unwrap_or(false)
 }
 
 /// A new TPM key: the challenge it signs, nothing public, and the unlock key.
@@ -31,7 +31,7 @@ pub fn enroll() -> Result<(Vec<u8>, Vec<u8>, Zeroizing<[u8; 32]>), TouchIdError>
     let challenge: Vec<u8> = [uuid::Uuid::new_v4(), uuid::Uuid::new_v4()].iter().flat_map(|u| *u.as_bytes()).collect();
     focus_prompt();
     let result = KeyCredentialManager::RequestCreateAsync(&HSTRING::from(CREDENTIAL), KeyCredentialCreationOption::ReplaceExisting)
-        .and_then(|op| op.get())
+        .and_then(|op| op.join())
         .map_err(|_| TouchIdError::Failed)?;
     check(result.Status().map_err(|_| TouchIdError::Failed)?)?;
     let credential = result.Credential().map_err(|_| TouchIdError::Failed)?;
@@ -43,7 +43,7 @@ pub fn enroll() -> Result<(Vec<u8>, Vec<u8>, Zeroizing<[u8; 32]>), TouchIdError>
 /// Ask for Windows Hello and recompute the unlock key. Blocks until the user responds.
 pub fn derive(challenge: &[u8], _public: &[u8], _reason: &str) -> Result<Zeroizing<[u8; 32]>, TouchIdError> {
     let result = KeyCredentialManager::OpenAsync(&HSTRING::from(CREDENTIAL))
-        .and_then(|op| op.get())
+        .and_then(|op| op.join())
         .map_err(|_| TouchIdError::Failed)?;
     check(result.Status().map_err(|_| TouchIdError::Failed)?)?;
     let credential = result.Credential().map_err(|_| TouchIdError::Failed)?;
@@ -53,7 +53,7 @@ pub fn derive(challenge: &[u8], _public: &[u8], _reason: &str) -> Result<Zeroizi
 
 fn sign(credential: &KeyCredential, challenge: &[u8]) -> Result<Zeroizing<[u8; 32]>, TouchIdError> {
     let buffer = CryptographicBuffer::CreateFromByteArray(challenge).map_err(|_| TouchIdError::Failed)?;
-    let result = credential.RequestSignAsync(&buffer).and_then(|op| op.get()).map_err(|_| TouchIdError::Failed)?;
+    let result = credential.RequestSignAsync(&buffer).and_then(|op| op.join()).map_err(|_| TouchIdError::Failed)?;
     check(result.Status().map_err(|_| TouchIdError::Failed)?)?;
     let signature = result.Result().map_err(|_| TouchIdError::Failed)?;
     let mut bytes = Array::<u8>::new();

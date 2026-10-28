@@ -115,20 +115,9 @@ fn to_prune(ids: &[String]) -> Vec<String> {
     doomed
 }
 
-/// `YYYY-MM-DD_HHMMSS` in local time, so it reads naturally in Finder.
+/// `YYYY-MM-DD_HHMMSS` in local time, so it reads naturally in a file manager.
 fn folder_name(t: SystemTime) -> String {
-    let secs = t.duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as libc::time_t;
-    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
-    unsafe { libc::localtime_r(&secs, &mut tm) };
-    format!(
-        "{:04}-{:02}-{:02}_{:02}{:02}{:02}",
-        tm.tm_year + 1900,
-        tm.tm_mon + 1,
-        tm.tm_mday,
-        tm.tm_hour,
-        tm.tm_min,
-        tm.tm_sec
-    )
+    chrono::DateTime::<chrono::Local>::from(t).format("%Y-%m-%d_%H%M%S").to_string()
 }
 
 /// `YYYY-MM-DD_HHMMSS`, or with `-2` added for a second backup in the same second.

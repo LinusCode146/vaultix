@@ -31,6 +31,7 @@ notify = "8.2.1"
 
 tauri-plugin-opener = "2"
 sha2 = "0.10"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 trash = "5"
@@ -53,8 +54,11 @@ windows = { version = "0.62", features = [
   "Win32_Networking_WinSock",
   "Win32_Security",
   "Win32_Security_Cryptography",
+  "Win32_Security_Cryptography_Catalog",
+  "Win32_Security_Cryptography_Sip",
   "Win32_Security_WinTrust",
   "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_IO",
   "Win32_System_LibraryLoader",
   "Win32_System_RemoteDesktop",
   "Win32_System_Threading",
