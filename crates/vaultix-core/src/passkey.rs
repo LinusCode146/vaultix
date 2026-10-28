@@ -94,6 +94,27 @@ pub struct Assertion {
 }
 
 impl Passkey {
+    /// A passkey brought over from another password manager, with its private
+    /// key as PKCS#8 DER. Fails unless it's a P-256 key, the only kind Vaultix
+    /// signs with.
+    pub fn imported(
+        credential_id: Vec<u8>,
+        rp_id: String,
+        user_handle: Vec<u8>,
+        user_name: String,
+        mut private_key: Vec<u8>,
+        created_at: i64,
+    ) -> Result<Passkey> {
+        if SigningKey::from_pkcs8_der(&private_key).is_err() {
+            private_key.zeroize();
+            return Err(Error::Passkey("not a P-256 key".into()));
+        }
+        if credential_id.is_empty() || rp_id.is_empty() {
+            return Err(Error::Passkey("no credential ID or RP ID".into()));
+        }
+        Ok(Passkey { credential_id, rp_id, user_handle, user_display_name: user_name.clone(), user_name, private_key, created_at })
+    }
+
     /// Create a new credential (`navigator.credentials.create`).
     ///
     /// With "none" attestation nothing is signed at registration, so the

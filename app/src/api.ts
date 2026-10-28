@@ -243,7 +243,11 @@ export interface Api {
   restoreFromBackup(id: string, itemIds: string[]): Promise<number>;
   /** Ask for an export file; `null` if cancelled. */
   pickImportFile(): Promise<string | null>;
-  importPreview(path: string): Promise<ImportPreview>;
+  /** Ask for a KeePass key file; `null` if cancelled. */
+  pickKeyFile(): Promise<string | null>;
+  /** A KeePass database needs `password` (and `keyFile`, if it has one): without it this
+   * fails with "kdbx-password", with a wrong one "kdbx-wrong-key". */
+  importPreview(path: string, password?: string, keyFile?: string): Promise<ImportPreview>;
   /** Saves what the preview showed; returns how many items were added. */
   importCommit(): Promise<number>;
   importCancel(): Promise<void>;
@@ -308,12 +312,17 @@ const tauriApi: Api = {
     const path = await open({
       directory: false,
       multiple: false,
-      title: "Choose a 1Password, browser or Bitwarden export",
-      filters: [{ name: "Password export", extensions: ["1pux", "csv"] }],
+      title: "Choose a 1Password, KeePass, browser or Bitwarden export",
+      filters: [{ name: "Password export", extensions: ["1pux", "kdbx", "csv"] }],
     });
     return typeof path === "string" ? path : null;
   },
-  importPreview: (path) => invoke("import_preview", { path }),
+  pickKeyFile: async () => {
+    const path = await open({ directory: false, multiple: false, title: "Choose the database's key file" });
+    return typeof path === "string" ? path : null;
+  },
+  importPreview: (path, password, keyFile) =>
+    invoke("import_preview", { path, password: password ?? null, keyFile: keyFile ?? null }),
   importCommit: () => invoke("import_commit"),
   importCancel: () => invoke("import_cancel"),
   trashImportedFile: () => invoke("trash_imported_file"),

@@ -5,6 +5,7 @@ import type { Api, AppSettings, BackupInfo, FieldValue, ItemInput, ItemView, Sta
 let stage: Status["stage"] = "setup";
 let vaultDir: string | null = null;
 let touchId = false;
+let importPicks = 0;
 const PASSWORD = "correct horse battery";
 const items = new Map<string, ItemView>();
 
@@ -423,11 +424,28 @@ export const mockApi: Api = {
     return itemIds.length;
   },
   async pickImportFile() {
-    return "/Users/you/Downloads/1PasswordExport-ABCD-20261028-091500.1pux";
+    // Each pick shows the next kind of file.
+    const files = ["/Users/you/Downloads/1PasswordExport-ABCD-20261028-091500.1pux", "/Users/you/Documents/Passwords.kdbx"];
+    return files[importPicks++ % files.length];
   },
-  async importPreview(path) {
+  async pickKeyFile() {
+    return "/Users/you/Documents/Passwords.keyx";
+  },
+  async importPreview(path, password) {
     requireUnlocked();
     await delay(700);
+    if (path.endsWith(".kdbx")) {
+      if (password === undefined) throw "kdbx-password";
+      if (password !== "correct horse battery staple") throw "kdbx-wrong-key";
+      return {
+        source: "KeePass",
+        fileName: path.split("/").pop() ?? path,
+        counts: [["login", 96], ["secureNote", 7]],
+        duplicates: 2,
+        files: 1,
+        warnings: ["4 items in the recycle bin left out."],
+      };
+    }
     return {
       source: path.endsWith(".csv") ? "Chrome" : "1Password",
       fileName: path.split("/").pop() ?? path,

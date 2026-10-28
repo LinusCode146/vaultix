@@ -628,12 +628,40 @@ pub struct ImportPreview {
 }
 
 /// Read an export and say what importing it would add. Nothing is saved yet.
+/// A KeePass database needs its `password` (and `key_file`, if it has one):
+/// without it this fails with `kdbx-password`, with a wrong one `kdbx-wrong-key`.
 #[tauri::command]
-pub async fn import_preview(state: State<'_, AppState>, path: String) -> CmdResult<ImportPreview> {
+pub async fn import_preview(
+    state: State<'_, AppState>,
+    path: String,
+    password: Option<String>,
+    key_file: Option<String>,
+) -> CmdResult<ImportPreview> {
+    use vaultix_core::import;
+    use zeroize::Zeroize;
+
     let path = PathBuf::from(path);
     let mut bytes = std::fs::read(&path).map_err(|e| format!("Can't read {}: {e}", path.display()))?;
-    let parsed = vaultix_core::import::parse(&bytes, now_ms());
-    zeroize::Zeroize::zeroize(&mut bytes);
+    let parsed = if import::is_kdbx(&bytes) {
+        let Some(mut password) = password else {
+            bytes.zeroize();
+            return Err("kdbx-password".into());
+        };
+        let key = match key_file.map(std::fs::read).transpose() {
+            Ok(key) => key,
+            Err(e) => {
+                bytes.zeroize();
+                password.zeroize();
+                return Err(format!("Can't read the key file: {e}"));
+            }
+        };
+        let parsed = import::parse_kdbx(&bytes, &password, key.as_deref(), now_ms());
+        password.zeroize();
+        parsed
+    } else {
+        import::parse(&bytes, now_ms())
+    };
+    bytes.zeroize();
     let parsed = parsed.map_err(|e| e.to_string())?;
 
     let (items, duplicates) = state.with_vault(|v| {

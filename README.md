@@ -15,8 +15,9 @@ no account.
 - ⌘⇧Space quick search from any app
 - Watchtower: weak, reused and http-only passwords, and sites that offer
   two-factor codes or passkeys you haven't set up
-- Import from 1Password (`.1pux`, CSV), Chrome/Edge/Brave, Safari/Passwords,
-  Firefox and Bitwarden
+- Import from 1Password (`.1pux`, CSV), KeePass and KeePassXC (`.kdbx`,
+  including passkeys), Chrome/Edge/Brave, Safari/Passwords, Firefox and
+  Bitwarden
 - Daily encrypted backups with restore, and password history
 
 ## Install

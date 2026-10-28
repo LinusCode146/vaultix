@@ -1,6 +1,7 @@
-//! Reading other password managers' exports: 1Password's `.1pux`, and the
-//! CSV files of 1Password, Chrome/Edge/Brave, Firefox, Safari/Apple Passwords
-//! and Bitwarden. Parsing only builds items; the caller decides what to save.
+//! Reading other password managers' exports: 1Password's `.1pux`, KeePass
+//! databases (`.kdbx`), and the CSV files of 1Password, Chrome/Edge/Brave,
+//! Firefox, Safari/Apple Passwords and Bitwarden. Parsing only builds items;
+//! the caller decides what to save.
 
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
@@ -403,6 +404,212 @@ pub fn parse_csv(bytes: &[u8], now_ms: i64) -> Result<ImportResult> {
     Ok(ImportResult { source, items, warnings })
 }
 
+// ---------- KeePass (.kdbx) ----------
+
+/// The error [`parse_kdbx`] returns for a wrong password or key file.
+pub const KDBX_WRONG_KEY: &str = "kdbx-wrong-key";
+
+/// Whether the file is a KeePass database, which needs its password to read.
+pub fn is_kdbx(bytes: &[u8]) -> bool {
+    bytes.starts_with(&[0x03, 0xd9, 0xa2, 0x9a])
+}
+
+/// Read a KeePass 2 or KeePassXC database (KDBX 3.1 or 4) with its password
+/// and, if it has one, its key file. Groups become tags, and entries in the
+/// recycle bin are left out. KeePassXC's passkeys come along.
+pub fn parse_kdbx(bytes: &[u8], password: &str, key_file: Option<&[u8]>, now_ms: i64) -> Result<ImportResult> {
+    use keepass::db::{DatabaseOpenError, fields};
+
+    let mut key = keepass::DatabaseKey::new();
+    if !password.is_empty() {
+        key = key.with_password(password);
+    }
+    if let Some(mut file) = key_file {
+        key = key.with_keyfile(&mut file).map_err(|_| Error::Import("The key file can't be read.".into()))?;
+    }
+    let db = keepass::Database::parse(bytes, key).map_err(|e| match e {
+        DatabaseOpenError::Key(_) => Error::Import(KDBX_WRONG_KEY.into()),
+        DatabaseOpenError::UnsupportedVersion => {
+            Error::Import("This is a KeePass 1 database. Open it in KeePassXC, save it as KDBX 4, then import that.".into())
+        }
+        e => Error::Import(format!("This KeePass database can't be read ({e}).")),
+    })?;
+
+    let ms = |t: Option<chrono::NaiveDateTime>| t.map(|t| t.and_utc().timestamp_millis());
+    let recycle_bin = db.recycle_bin().map(|g| g.id());
+    let templates = db.meta.entry_templates_group;
+
+    let mut items = Vec::new();
+    let (mut binned, mut bad_totp, mut bad_passkeys) = (0, 0, 0);
+    let mut groups = vec![(db.root().id(), String::new())];
+    while let Some((group_id, path)) = groups.pop() {
+        let Some(group) = db.group(group_id) else { continue };
+        for child_id in group.group_ids() {
+            let Some(child) = db.group(child_id) else { continue };
+            if Some(child_id) == recycle_bin || Some(child_id.uuid()) == templates {
+                binned += if Some(child_id) == recycle_bin { count_kdbx_entries(&db, child_id) } else { 0 };
+                continue;
+            }
+            groups.push((child_id, if path.is_empty() { child.name.clone() } else { format!("{path}/{}", child.name) }));
+        }
+
+        for entry_id in group.entry_ids() {
+            let Some(entry) = db.entry(entry_id) else { continue };
+            let get = |k: &str| entry.get(k).unwrap_or("").trim().to_string();
+            let mut item = Item::new(get(fields::TITLE), now_ms);
+            item.username = get(fields::USERNAME);
+            item.password = entry.get(fields::PASSWORD).unwrap_or("").to_string();
+            item.notes = entry.get(fields::NOTES).unwrap_or("").trim_end().to_string();
+            item.urls = Some(get(fields::URL)).into_iter().filter(|u| !u.is_empty()).collect();
+            item.tags = entry.tags.iter().map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect();
+            if !path.is_empty() && !item.tags.contains(&path) {
+                item.tags.push(path.clone());
+            }
+            item.created_at = ms(entry.times.creation).unwrap_or(now_ms);
+            item.updated_at = ms(entry.times.last_modification).unwrap_or(item.created_at);
+
+            let mut names: Vec<&String> = entry.fields.keys().collect();
+            names.sort();
+            let mut passkey: HashMap<&str, String> = HashMap::new();
+            for name in names {
+                let value = &entry.fields[name];
+                let text = value.get().trim().to_string();
+                if fields::KNOWN_FIELDS.contains(&name.as_str()) || text.is_empty() {
+                    continue;
+                }
+                if let Some(part) = name.strip_prefix("KPEX_PASSKEY_") {
+                    passkey.insert(part, text);
+                    continue;
+                }
+                if name.starts_with("TimeOtp-") && name != "TimeOtp-Secret-Base32" {
+                    continue; // read with the secret below
+                }
+                let otp = match name.as_str() {
+                    "otp" => Some(text.clone()),
+                    "TimeOtp-Secret-Base32" => Some(kdbx_otpauth(&text, &entry)),
+                    _ => None,
+                };
+                if let Some(otp) = &otp {
+                    match Totp::parse(otp) {
+                        Ok(t) if item.totp.is_none() => {
+                            item.totp = Some(t);
+                            continue;
+                        }
+                        Ok(_) => {}
+                        Err(_) => bad_totp += 1,
+                    }
+                }
+                if name.starts_with("KP2A_URL") || name.eq_ignore_ascii_case("url") {
+                    item.urls.push(text);
+                    continue;
+                }
+                let kind = match () {
+                    _ if value.is_protected() || otp.is_some() => FieldKind::Concealed,
+                    _ if text.contains('\n') => FieldKind::Multiline,
+                    _ => FieldKind::Text,
+                };
+                let id = format!("kp_{}", name.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').collect::<String>());
+                push_field(&mut item, id, name.clone(), kind, text);
+            }
+            if !passkey.is_empty() {
+                match kdbx_passkey(&passkey, &item) {
+                    Some(p) => item.passkeys.push(p),
+                    None => bad_passkeys += 1,
+                }
+                for value in passkey.values_mut() {
+                    value.zeroize();
+                }
+            }
+
+            // KeePass keeps whole earlier versions; walk them newest first.
+            if let Some(history) = &entry.history {
+                let mut versions: Vec<&keepass::db::Entry> = history.get_entries().iter().collect();
+                versions.sort_by_key(|v| std::cmp::Reverse(v.times.last_modification));
+                let (mut later, mut later_at) = (item.password.clone(), item.updated_at);
+                for version in versions {
+                    let password = version.get(fields::PASSWORD).unwrap_or("");
+                    if !password.is_empty() && password != later {
+                        item.password_history.push(PasswordChange { password: password.to_string(), changed_at: later_at });
+                    }
+                    later.zeroize();
+                    later = password.to_string();
+                    later_at = ms(version.times.last_modification).unwrap_or(later_at);
+                }
+                later.zeroize();
+                item.password_history.truncate(20);
+            }
+
+            let files: Vec<ImportedFile> = entry
+                .attachments_named()
+                .map(|(name, attachment)| ImportedFile { name: name.to_string(), contents: attachment.data.get().clone() })
+                .collect();
+
+            let is_login = !item.username.is_empty() || !item.password.is_empty() || !item.urls.is_empty() || !item.passkeys.is_empty();
+            if !is_login && item.notes.is_empty() && item.fields.is_empty() && files.is_empty() && item.totp.is_none() {
+                continue;
+            }
+            if !is_login {
+                item.category = Category::SecureNote;
+            }
+            if item.title.is_empty() {
+                item.title = item.urls.first().map(|u| host_of(u)).unwrap_or_else(|| "Untitled".into());
+            }
+            items.push(Imported { item, files });
+        }
+    }
+
+    let mut warnings = Vec::new();
+    if binned > 0 {
+        warnings.push(format!("{binned} item{} in the recycle bin left out.", plural(binned)));
+    }
+    if bad_totp > 0 {
+        warnings.push(format!("{bad_totp} one-time password setting{} couldn't be read and were kept as fields.", plural(bad_totp)));
+    }
+    if bad_passkeys > 0 {
+        warnings.push(format!(
+            "{bad_passkeys} passkey{} couldn't be read. Their logins are imported; add the passkeys again on those sites.",
+            plural(bad_passkeys)
+        ));
+    }
+    Ok(ImportResult { source: "KeePass", items, warnings })
+}
+
+fn count_kdbx_entries(db: &keepass::Database, group: keepass::db::GroupId) -> usize {
+    db.group(group).map_or(0, |g| g.entry_ids().count() + g.group_ids().map(|child| count_kdbx_entries(db, child)).sum::<usize>())
+}
+
+/// KeePass 2.47+ keeps TOTP settings in separate `TimeOtp-*` fields.
+fn kdbx_otpauth(secret: &str, entry: &keepass::db::Entry) -> String {
+    let mut uri = format!("otpauth://totp/?secret={}", secret.replace(' ', ""));
+    for (field, param) in [("TimeOtp-Period", "period"), ("TimeOtp-Length", "digits"), ("TimeOtp-Algorithm", "algorithm")] {
+        if let Some(v) = entry.get(field).map(str::trim).filter(|v| !v.is_empty()) {
+            // KeePass writes the algorithm as "HMAC-SHA-256".
+            uri.push_str(&format!("&{param}={}", v.replace("HMAC-", "").replace('-', "")));
+        }
+    }
+    uri
+}
+
+/// A KeePassXC passkey, from its `KPEX_PASSKEY_*` fields.
+fn kdbx_passkey(fields: &HashMap<&str, String>, item: &Item) -> Option<crate::passkey::Passkey> {
+    use base64::Engine;
+    use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
+    // KeePassXC writes IDs as base64url; be lenient about padding and alphabet.
+    let b64url = |s: &str| URL_SAFE_NO_PAD.decode(s.trim().trim_end_matches('=').replace('+', "-").replace('/', "_")).ok();
+    let pem = fields.get("PRIVATE_KEY_PEM")?;
+    let der: String = pem.lines().filter(|l| !l.starts_with("-----")).map(str::trim).collect();
+    let private_key = STANDARD.decode(der).ok()?;
+    crate::passkey::Passkey::imported(
+        b64url(fields.get("CREDENTIAL_ID")?)?,
+        fields.get("RELYING_PARTY")?.clone(),
+        fields.get("USER_HANDLE").and_then(|h| b64url(h)).unwrap_or_default(),
+        fields.get("USERNAME").cloned().unwrap_or_else(|| item.username.clone()),
+        private_key,
+        item.created_at,
+    )
+    .ok()
+}
+
 fn str_of(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
@@ -585,6 +792,123 @@ mod tests {
         let r = parse(one_password.as_bytes(), 0).unwrap();
         assert_eq!((r.source, r.items.len()), ("1Password", 1));
         assert_eq!(r.items[0].item.tags, ["x", "y"]);
+    }
+
+    fn at(secs: i64) -> Option<chrono::NaiveDateTime> {
+        chrono::DateTime::from_timestamp(secs, 0).map(|t| t.naive_utc())
+    }
+
+    /// A small KeePassXC-style database, saved as a real KDBX 4 file.
+    fn kdbx(password: &str) -> Vec<u8> {
+        use keepass::config::KdfConfig;
+        use keepass::db::{History, Value as KpValue};
+        use p256::pkcs8::EncodePrivateKey;
+
+        let mut db = keepass::Database::new();
+        db.config.kdf_config = KdfConfig::Aes { rounds: 10 }; // fast, for tests
+        let bin = {
+            let mut root = db.root_mut();
+            let mut bin = root.add_group();
+            bin.name = "Recycle Bin".into();
+            bin.add_entry().set_unprotected("Title", "Deleted");
+            bin.id()
+        };
+        db.meta.recyclebin_uuid = Some(bin.uuid());
+
+        let mut root = db.root_mut();
+        let mut banking = root.add_group();
+        banking.name = "Banking".into();
+        let mut bank = banking.add_entry();
+        bank.set_unprotected("Title", "Bank");
+        bank.set_unprotected("UserName", "me");
+        bank.set_protected("Password", "oldest");
+        bank.times.last_modification = at(1_000);
+        let mut history = History::default();
+        history.add_entry((*bank).clone());
+        bank.set_protected("Password", "old");
+        bank.times.last_modification = at(2_000);
+        history.add_entry((*bank).clone());
+        bank.set_protected("Password", "current");
+        bank.times.last_modification = at(3_000);
+        bank.history = Some(history);
+        bank.set_unprotected("URL", "https://bank.example");
+        bank.set_unprotected("KP2A_URL_1", "https://app.bank.example");
+        bank.set_protected("otp", "otpauth://totp/Bank?secret=JBSWY3DPEHPK3PXP");
+        bank.set_protected("PIN", "1234");
+        bank.set_unprotected("Branch", "Main street");
+        bank.tags = vec!["money".into()];
+        bank.add_attachment("statement.pdf", KpValue::unprotected(b"%PDF".to_vec()));
+
+        let mut site = root.add_entry();
+        site.set_unprotected("Title", "Passkey site");
+        site.set_unprotected("UserName", "alice");
+        site.set_unprotected("URL", "https://passkey.example");
+        let der = p256::ecdsa::SigningKey::random(&mut rand::rngs::OsRng).to_pkcs8_der().unwrap();
+        use base64::Engine;
+        let pem = format!("-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----", base64::engine::general_purpose::STANDARD.encode(der.as_bytes()));
+        site.set_protected("KPEX_PASSKEY_PRIVATE_KEY_PEM", pem);
+        site.set_protected("KPEX_PASSKEY_CREDENTIAL_ID", "AQIDBA");
+        site.set_protected("KPEX_PASSKEY_USER_HANDLE", "dXNlcg");
+        site.set_unprotected("KPEX_PASSKEY_RELYING_PARTY", "passkey.example");
+        site.set_unprotected("KPEX_PASSKEY_USERNAME", "alice");
+
+        let mut note = root.add_entry();
+        note.set_unprotected("Title", "Wifi");
+        note.set_unprotected("Notes", "the code is 42");
+        note.set_protected("Password", "");
+
+        let mut legacy = root.add_entry();
+        legacy.set_unprotected("Title", "KeePass 2 TOTP");
+        legacy.set_unprotected("UserName", "bob");
+        legacy.set_protected("TimeOtp-Secret-Base32", "JBSW Y3DP EHPK 3PXP");
+        legacy.set_unprotected("TimeOtp-Algorithm", "HMAC-SHA-256");
+        legacy.set_unprotected("TimeOtp-Length", "8");
+
+        let mut out = Vec::new();
+        db.save(&mut out, keepass::DatabaseKey::new().with_password(password)).unwrap();
+        out
+    }
+
+    #[test]
+    fn imports_a_keepass_database() {
+        let bytes = kdbx("hunter2-but-longer");
+        assert!(is_kdbx(&bytes) && !is_kdbx(b"PK\x03\x04"));
+        let wrong = parse_kdbx(&bytes, "nope", None, 0).err().unwrap();
+        assert_eq!(wrong.to_string(), KDBX_WRONG_KEY);
+
+        let r = parse_kdbx(&bytes, "hunter2-but-longer", None, 0).unwrap();
+        assert_eq!(r.source, "KeePass");
+        let find = |t: &str| r.items.iter().find(|i| i.item.title == t).unwrap_or_else(|| panic!("no {t}"));
+        assert!(r.items.iter().all(|i| i.item.title != "Deleted"));
+        assert!(r.warnings.iter().any(|w| w.contains("1 item in the recycle bin")), "{:?}", r.warnings);
+
+        let bank = find("Bank");
+        let b = &bank.item;
+        assert_eq!((b.category, b.username.as_str(), b.password.as_str()), (Category::Login, "me", "current"));
+        assert_eq!(b.urls, ["https://bank.example", "https://app.bank.example"]);
+        assert!(b.totp.is_some());
+        assert_eq!(b.tags, ["money", "Banking"]);
+        let history: Vec<(&str, i64)> = b.password_history.iter().map(|h| (h.password.as_str(), h.changed_at)).collect();
+        assert_eq!(history, [("old", 3_000_000), ("oldest", 2_000_000)]);
+        assert_eq!(b.updated_at, 3_000_000);
+        let field = |id: &str| b.fields.iter().find(|f| f.id == id).map(|f| (f.kind, f.value.as_str()));
+        assert_eq!(field("kp_PIN"), Some((FieldKind::Concealed, "1234")));
+        assert_eq!(field("kp_Branch"), Some((FieldKind::Text, "Main street")));
+        assert_eq!(bank.files.len(), 1);
+        assert_eq!((bank.files[0].name.as_str(), bank.files[0].contents.as_slice()), ("statement.pdf", b"%PDF".as_slice()));
+
+        let site = &find("Passkey site").item;
+        assert_eq!(site.passkeys.len(), 1);
+        let p = &site.passkeys[0];
+        assert_eq!((p.rp_id.as_str(), p.credential_id.as_slice(), p.user_handle.as_slice()), ("passkey.example", [1, 2, 3, 4].as_slice(), b"user".as_slice()));
+        assert!(site.fields.is_empty(), "passkey fields shouldn't show as fields");
+
+        assert_eq!(find("Wifi").item.category, Category::SecureNote);
+
+        let legacy = &find("KeePass 2 TOTP").item;
+        let totp = legacy.totp.as_ref().expect("TimeOtp fields read");
+        assert_eq!(totp.code_at(0).unwrap().len(), 8);
+        assert!(legacy.fields.is_empty());
     }
 
     #[test]
