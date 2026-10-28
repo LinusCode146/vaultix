@@ -232,8 +232,7 @@ function useSiteIcon(url: string | null | undefined): string | null {
 export function TouchIdIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-      <path d="M5.5 9.5a7 7 0 0 1 13 0M4 13.5c.3-1 .6-2 1-2.8M20 13.5a14 14 0 0 0-.6-3" />
-      <path d="M8 18.5a12 12 0 0 0 1-5.5 3 3 0 0 1 6 0c0 2.6-.4 4.8-1.3 6.8M12 13c0 3-.6 5.6-1.9 7.8M16.6 20.2c.7-1.6 1.2-3.9 1.4-6.2M6.6 16.2c.5-1 .9-2.2.9-3.2A4.5 4.5 0 0 1 12 8.5" />
+      <path d="M3 15v-2.5a9 9 0 0 1 18 0v1M6 18.5v-6a6 6 0 0 1 12 0v2.5c0 1.6-.3 3.2-.8 4.5M9 20.5v-8a3 3 0 0 1 6 0v2.5c0 2.5-.4 4.6-1.2 6.3M12 12.5v3.5c0 2-.3 3.6-.9 5" />
     </svg>
   );
 }
