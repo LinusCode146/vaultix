@@ -4,6 +4,12 @@ A personal password manager for macOS: desktop app (Tauri) + browser extension
 with autofill, TOTP and passkeys, synced between Macs through a folder you
 already sync (iCloud Drive, Dropbox, Syncthing).
 
+## Install
+
+Download the app and the extension from
+[Releases](https://github.com/LinusCode146/vaultix/releases). The release notes
+explain how to open the app the first time and load the extension.
+
 ## Layout
 
 ```
