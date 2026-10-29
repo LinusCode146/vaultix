@@ -67,8 +67,7 @@ jobs:
       # built and signed locally (scripts/release.sh).
       - name: Android app
         working-directory: app
-        env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
         run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
           npm ci
           npx tauri android build --apk --target aarch64 --ci
