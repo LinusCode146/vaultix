@@ -1,6 +1,6 @@
 // In-memory stand-in for the Rust backend, used only when the UI runs in a
 // normal browser. Nothing here is secure; it exists for layout and flow work.
-import type { Api, AppSettings, BackupInfo, FieldValue, ItemInput, ItemView, Status, StrengthLabel, StrengthView, TotpCode, TouchIdStatus, WatchtowerIssue, WatchtowerReport } from "./api";
+import type { Api, AppSettings, BackupInfo, FieldValue, ItemInput, ItemView, PhoneView, Status, StrengthLabel, StrengthView, TotpCode, TouchIdStatus, WatchtowerIssue, WatchtowerReport } from "./api";
 import { platform } from "./platform";
 
 let stage: Status["stage"] = "setup";
@@ -18,6 +18,10 @@ const backups: BackupInfo[] = [3, 2, 1, 0].map((d) => {
 }).reverse();
 /** Items as they were in the backups: one deleted since, one with an older password. */
 const deletedInBackup: ItemView[] = [];
+
+let phones: PhoneView[] = [];
+let pairing: ReturnType<typeof setTimeout> | undefined;
+const phoneListeners = new Set<() => void>();
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 const now = () => Date.now();
@@ -385,6 +389,32 @@ export const mockApi: Api = {
   },
   onVaultChanged() {
     return () => {};
+  },
+  async phones() {
+    return [...phones];
+  },
+  async addPhone() {
+    await delay();
+    // Pretend a phone scans the code after a few seconds.
+    clearTimeout(pairing);
+    pairing = setTimeout(() => {
+      phones.push({ id: crypto.randomUUID(), name: "Pixel 9", pairedAt: now(), lastSync: now() });
+      phoneListeners.forEach((f) => f());
+    }, 6000);
+    const cells = Array.from({ length: 21 * 21 }, (_, i) => ((i * 7919) % 13 < 6 ? 1 : 0));
+    const rects = cells.map((c, i) => (c ? `<rect x="${i % 21}" y="${Math.floor(i / 21)}" width="1" height="1"/>` : "")).join("");
+    const qr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 25 25" width="240" height="240"><rect x="-2" y="-2" width="25" height="25" fill="#fff"/>${rects}</svg>`;
+    return { qr, expiresAt: now() + 5 * 60_000, computerName: "Linus's MacBook Pro" };
+  },
+  async cancelAddPhone() {
+    clearTimeout(pairing);
+  },
+  async removePhone(id) {
+    phones = phones.filter((p) => p.id !== id);
+  },
+  onPhonesChanged(callback) {
+    phoneListeners.add(callback);
+    return () => void phoneListeners.delete(callback);
   },
   async appSettings() {
     return { ...settings };

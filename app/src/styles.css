@@ -2009,3 +2009,42 @@ html.quick-window body {
 .quick-unlock-row input {
   flex: 1;
 }
+
+/* Phones */
+.phone-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.phone-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--fill);
+}
+.phone-list li > span {
+  display: grid;
+}
+.add-phone .steps {
+  margin: 4px 0 14px;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+.add-phone .qr-box {
+  display: grid;
+  place-items: center;
+  min-height: 256px;
+}
+.add-phone .qr-box img {
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+.small.center {
+  text-align: center;
+}

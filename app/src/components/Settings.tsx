@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, type AppSettings, type Backups, type TouchIdStatus } from "../api";
+import { api, errorMessage, type AppSettings, type Backups, type PhoneInvite, type PhoneView, type TouchIdStatus } from "../api";
 import { biometric, computer, fileManager, isMac, keys, systemName } from "../platform";
 import { setThemePref, useTheme, type ThemePref } from "../theme";
 import { ImportDialog } from "./ImportDialog";
 import { RestoreDialog } from "./RestoreDialog";
-import { Icon, Spinner, TouchIdIcon } from "./ui";
+import { Icon, IconButton, Spinner, TouchIdIcon } from "./ui";
 
 const THEMES: { id: ThemePref; label: string }[] = [
   { id: "system", label: "System" },
@@ -161,6 +161,8 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
         </div>
       </section>
 
+      <PhonesCard onError={onError} />
+
       <BackupsCard settings={settings} onPickFolder={(dir) => change({ backupDir: dir })} onRestore={() => setDialog("restore")} onError={onError} />
 
       <section className="card">
@@ -274,6 +276,157 @@ function BackupsCard({
         </div>
       </div>
     </section>
+  );
+}
+
+const ago = (ms: number) => {
+  const min = Math.round((Date.now() - ms) / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  return when(ms);
+};
+
+const PAIR_ERRORS: Record<string, string> = {
+  "no-vault": "Set up a vault first.",
+  "no-network": `This ${computer} isn't on a network. Connect it to the same Wi-Fi as your phone.`,
+};
+
+function PhonesCard({ onError }: { onError: (e: unknown) => void }) {
+  const [phones, setPhones] = useState<PhoneView[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const load = useCallback(() => api.phones().then(setPhones, onError), [onError]);
+  useEffect(() => {
+    load();
+    return api.onPhonesChanged(load);
+  }, [load]);
+
+  async function remove(phone: PhoneView) {
+    if (!confirm(`Remove ${phone.name}? It stops syncing with this ${computer}. Its copy of the vault stays on the phone until you remove Vaultix there.`)) return;
+    try {
+      await api.removePhone(phone.id);
+      await load();
+    } catch (e) {
+      onError(e);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="setting">
+        <Icon name="phone" size={26} />
+        <div className="setting-text">
+          <strong>Phones</strong>
+          <p className="muted">
+            Use your vault on your Android phone. It syncs with this {computer} over your Wi-Fi whenever both are on the same
+            network and Vaultix is open here; nothing goes through the internet.
+          </p>
+          {phones && phones.length > 0 && (
+            <ul className="phone-list">
+              {phones.map((p) => (
+                <li key={p.id}>
+                  <span>
+                    <strong>{p.name}</strong>
+                    <span className="muted small">{p.lastSync ? `Synced ${ago(p.lastSync)}` : `Paired ${when(p.pairedAt)}`}</span>
+                  </span>
+                  <button className="btn plain" onClick={() => remove(p)}>
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="setting-actions">
+            <button className="btn" onClick={() => setAdding(true)}>
+              Add a phone…
+            </button>
+          </div>
+        </div>
+      </div>
+      {adding && (
+        <AddPhoneDialog
+          phones={phones ?? []}
+          onClose={() => {
+            setAdding(false);
+            api.cancelAddPhone().catch(() => {});
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function AddPhoneDialog({ phones, onClose }: { phones: PhoneView[]; onClose: () => void }) {
+  // Phones paired before the dialog opened; a new one in the list is the one that scanned the code.
+  const [known] = useState(() => new Set(phones.map((p) => p.id)));
+  const [invite, setInvite] = useState<PhoneInvite | null>(null);
+  const [error, setError] = useState("");
+  const [left, setLeft] = useState(0);
+
+  const start = useCallback(() => {
+    setError("");
+    setInvite(null);
+    api.addPhone().then(setInvite, (e) => setError(PAIR_ERRORS[errorMessage(e)] ?? errorMessage(e)));
+  }, []);
+  useEffect(start, [start]);
+  useEffect(() => {
+    if (!invite) return;
+    const tick = () => setLeft(Math.max(0, Math.round((invite.expiresAt - Date.now()) / 1000)));
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [invite]);
+
+  const paired = phones.find((p) => !known.has(p.id));
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal dialog add-phone" role="dialog" aria-modal="true" aria-labelledby="add-phone-title">
+        <div className="modal-close">
+          <IconButton icon="x" label="Close" onClick={onClose} />
+        </div>
+        <h1 id="add-phone-title">Add a phone</h1>
+        {paired ? (
+          <>
+            <p className="notice">
+              <Icon name="check" /> {paired.name} is paired and has your vault. Unlock it there with your master password.
+            </p>
+            <div className="dialog-actions">
+              <button className="btn primary" onClick={onClose}>
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <ol className="steps">
+              <li>Install Vaultix on your Android phone and open it.</li>
+              <li>Connect the phone to the same Wi-Fi as this {computer}.</li>
+              <li>
+                Tap <strong>Pair with your computer</strong> and scan this code.
+              </li>
+            </ol>
+            <div className="qr-box">
+              {error ? (
+                <p className="error-text">{error}</p>
+              ) : !invite ? (
+                <Spinner />
+              ) : left > 0 ? (
+                <img alt="Pairing code" src={`data:image/svg+xml,${encodeURIComponent(invite.qr)}`} width={240} height={240} />
+              ) : (
+                <button className="btn" onClick={start}>
+                  Show a new code
+                </button>
+              )}
+            </div>
+            {invite && left > 0 && (
+              <p className="muted small center">
+                Works once, for {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}. Only show it to your own phone.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

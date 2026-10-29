@@ -6,6 +6,7 @@ mod commands;
 mod config;
 mod icons;
 mod ipc;
+mod link;
 mod native;
 mod quick;
 mod sites;
@@ -30,6 +31,7 @@ fn main() {
             let config_dir = app.path().app_config_dir()?;
             let sites = sites::SiteLists::start(config_dir.clone());
             app.manage(AppState::load(config_dir.join("config.json"), sites)?);
+            app.manage(link::Link::load(config_dir.join("link.json")));
 
             // Browser extension support. The app works without it, so failures
             // here are logged, not fatal.
@@ -47,6 +49,7 @@ fn main() {
             system::lock_when_away(app.handle());
             quick::setup(app.handle())?;
             watch::watch(app.handle(), app.state::<AppState>().vault_dir());
+            link::start(app.handle());
             Ok(())
         })
         // Closing the window keeps Vaultix running in the menu bar (system
@@ -96,6 +99,10 @@ fn main() {
             commands::unlock_touch_id,
             commands::open_and_fill,
             commands::copy_secret,
+            link::phones,
+            link::add_phone,
+            link::cancel_add_phone,
+            link::remove_phone,
             quick::quick_hide,
             quick::quick_copy,
         ])

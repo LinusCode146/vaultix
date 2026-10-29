@@ -180,7 +180,7 @@ impl AppState {
     }
 }
 
-type CmdResult<T> = Result<T, String>;
+pub(crate) type CmdResult<T> = Result<T, String>;
 
 fn now_ms() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
@@ -392,6 +392,7 @@ pub async fn create_vault(app: AppHandle, state: State<'_, AppState>, parent_dir
     state.set_vault_location(Some(VaultLocation { dir, vault_id: vault.vault_id() }))?;
     *state.vault.lock().unwrap() = Some(vault);
     crate::watch::watch(&app, state.vault_dir());
+    crate::link::set_vault_dir(&app, state.vault_dir());
     Ok(())
 }
 
@@ -405,6 +406,7 @@ pub async fn join_vault(app: AppHandle, state: State<'_, AppState>, dir: String,
     state.set_vault_location(Some(VaultLocation { dir, vault_id: vault.vault_id() }))?;
     *state.vault.lock().unwrap() = Some(vault);
     crate::watch::watch(&app, state.vault_dir());
+    crate::link::set_vault_dir(&app, state.vault_dir());
     Ok(())
 }
 
@@ -479,6 +481,7 @@ pub async fn set_app_settings(app: AppHandle, settings: Settings) -> CmdResult<(
 #[tauri::command]
 pub async fn forget_vault(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
     crate::watch::watch(&app, None);
+    crate::link::set_vault_dir(&app, None);
     *state.vault.lock().unwrap() = None;
     Enrollment::remove(&state.config_dir());
     state.icons.forget_memory();

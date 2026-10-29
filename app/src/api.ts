@@ -201,6 +201,21 @@ export interface TouchIdStatus {
   passwordRequired: boolean;
 }
 
+export interface PhoneView {
+  /** Certificate fingerprint. */
+  id: string;
+  name: string;
+  pairedAt: number;
+  lastSync: number | null;
+}
+
+export interface PhoneInvite {
+  /** The QR code to scan, as an SVG document. */
+  qr: string;
+  expiresAt: number;
+  computerName: string;
+}
+
 export interface Api {
   status(): Promise<Status>;
   createVault(parentDir: string, password: string): Promise<void>;
@@ -265,6 +280,13 @@ export interface Api {
   onQuickOpened(callback: () => void): () => void;
   /** The website's icon as a `data:` URI, or `null` if it has none. */
   siteIcon(url: string): Promise<string | null>;
+  phones(): Promise<PhoneView[]>;
+  /** Start pairing a phone: a QR code for it to scan. Rejects with "no-vault" or "no-network". */
+  addPhone(): Promise<PhoneInvite>;
+  cancelAddPhone(): Promise<void>;
+  removePhone(id: string): Promise<void>;
+  /** A phone paired or synced, or was removed. */
+  onPhonesChanged(callback: () => void): () => void;
   /** Called when the vault changes outside the UI (e.g. a login saved from the browser). Returns an unsubscribe function. */
   onVaultChanged(callback: () => void): () => void;
 }
@@ -359,6 +381,14 @@ const tauriApi: Api = {
   },
   onVaultChanged: (callback) => {
     const unlisten = listen("vault-changed", callback);
+    return () => void unlisten.then((fn) => fn());
+  },
+  phones: () => invoke("phones"),
+  addPhone: () => invoke("add_phone"),
+  cancelAddPhone: () => invoke("cancel_add_phone"),
+  removePhone: (id) => invoke("remove_phone", { id }),
+  onPhonesChanged: (callback) => {
+    const unlisten = listen("phones-changed", callback);
     return () => void unlisten.then((fn) => fn());
   },
 };

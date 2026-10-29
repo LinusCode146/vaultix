@@ -15,6 +15,9 @@ tauri-build = { version = "2", features = [] }
 base64 = "0.22"
 libc = "0.2.191"
 vaultix-core = { path = "../../crates/vaultix-core" }
+vaultix-link = { path = "../../crates/vaultix-link" }
+gethostname = "1"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 psl = "2.1.245"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
