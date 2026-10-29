@@ -191,7 +191,7 @@ export interface PasswordOptions {
 
 export interface TouchIdStatus {
   /** Which kind this computer has; `null` on Linux. */
-  kind: "touch-id" | "windows-hello" | null;
+  kind: "touch-id" | "windows-hello" | "android-biometric" | null;
   /** Touch ID with a finger enrolled, or Windows Hello set up. */
   available: boolean;
   enabled: boolean;
@@ -212,8 +212,19 @@ export interface PhoneView {
 export interface PhoneInvite {
   /** The QR code to scan, as an SVG document. */
   qr: string;
+  /** What the QR code says, to paste on a phone that can't scan it. */
+  uri: string;
   expiresAt: number;
   computerName: string;
+}
+
+/** The phone's link with its paired computer. */
+export interface LinkStatus {
+  paired: boolean;
+  computerName: string | null;
+  lastSync: number | null;
+  /** Error code of the last sync ("link-unreachable", …), cleared by the next good one. */
+  lastError: string | null;
 }
 
 export interface Api {
@@ -285,6 +296,19 @@ export interface Api {
   addPhone(): Promise<PhoneInvite>;
   cancelAddPhone(): Promise<void>;
   removePhone(id: string): Promise<void>;
+  /** Open a website in the default browser. */
+  openUrl(url: string): Promise<void>;
+  /** Phone: the paired computer and the last sync. */
+  linkStatus(): Promise<LinkStatus>;
+  /** Phone: pair with the computer whose QR code this is and fetch the vault. Rejects with
+   * "link-bad-invite", "link-unreachable", "link-bad-code", "link-no-vault", … */
+  pairWithComputer(invite: string): Promise<void>;
+  /** Phone: swap changes with the computer. Never rejects for network problems: see `lastError`. */
+  syncWithComputer(): Promise<LinkStatus>;
+  /** Phone: forget the computer and remove the vault from this phone. */
+  unpair(): Promise<void>;
+  /** Phone: scan a QR code with the camera; `null` if cancelled. */
+  scanQrCode(): Promise<string | null>;
   /** A phone paired or synced, or was removed. */
   onPhonesChanged(callback: () => void): () => void;
   /** Called when the vault changes outside the UI (e.g. a login saved from the browser). Returns an unsubscribe function. */
@@ -382,6 +406,27 @@ const tauriApi: Api = {
   onVaultChanged: (callback) => {
     const unlisten = listen("vault-changed", callback);
     return () => void unlisten.then((fn) => fn());
+  },
+  openUrl: async (url) => {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(url);
+  },
+  linkStatus: () => invoke("link_status"),
+  pairWithComputer: (invite) => invoke("pair_with_computer", { invite }),
+  syncWithComputer: () => invoke("sync_with_computer"),
+  unpair: () => invoke("unpair"),
+  scanQrCode: async () => {
+    const scanner = await import("@tauri-apps/plugin-barcode-scanner");
+    let permission = await scanner.checkPermissions();
+    if (permission !== "granted") permission = await scanner.requestPermissions();
+    if (permission !== "granted") throw "camera-denied";
+    try {
+      const result = await scanner.scan({ windowed: false, formats: [scanner.Format.QRCode] });
+      return result.content;
+    } catch (e) {
+      if (/cancel/i.test(String(e))) return null;
+      throw e;
+    }
   },
   phones: () => invoke("phones"),
   addPhone: () => invoke("add_phone"),

@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, errorMessage, type MasterPasswordCheck } from "../api";
 import { Spinner, StrengthMeter } from "../components/ui";
-import { computer, computers, syncedFolder } from "../platform";
+import { computer, computers, isPhone, syncedFolder } from "../platform";
 
 type Mode = "choose" | "create" | "join";
 
 export function Setup({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<Mode>("choose");
+  if (isPhone) return <PhoneSetup onDone={onDone} />;
 
   return (
     <div className="center-screen">
@@ -30,9 +31,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
             </div>
           </>
         )}
-        {mode === "create" && (
-          <CreateForm onBack={() => setMode("choose")} onCreated={onDone} />
-        )}
+        {mode === "create" && <CreateForm onBack={() => setMode("choose")} onCreated={onDone} />}
         {mode === "join" && <JoinForm onBack={() => setMode("choose")} onJoined={onDone} />}
       </div>
     </div>
@@ -178,5 +177,112 @@ function JoinForm({ onBack, onJoined }: { onBack: () => void; onJoined: () => vo
         </button>
       </div>
     </form>
+  );
+}
+
+const PAIR_ERRORS: Record<string, string> = {
+  "link-bad-invite": "That isn't a Vaultix pairing code. On your computer, open Settings → Phones → Add a phone.",
+  "link-unreachable": "Couldn't reach your computer. Make sure Vaultix is open there and both are on the same Wi-Fi.",
+  "link-bad-code": "That code was already used or has expired. Show a new one on your computer.",
+  "link-no-vault": "Vaultix on your computer has no vault yet. Set one up there first.",
+  "link-version": "Vaultix on your computer is a different version. Update both to the latest.",
+  "camera-denied": "Vaultix needs the camera to scan the code. Allow it in Android's settings, or paste the code instead.",
+};
+
+/** The phone has no vault of its own: it gets it from a computer it pairs with. */
+function PhoneSetup({ onDone }: { onDone: () => void }) {
+  const [pasting, setPasting] = useState(false);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function pair(invite: string | null) {
+    if (!invite) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.pairWithComputer(invite);
+      onDone();
+    } catch (e) {
+      const c = errorMessage(e);
+      setError(PAIR_ERRORS[c] ?? `Pairing failed (${c}).`);
+      setBusy(false);
+    }
+  }
+
+  async function scan() {
+    setError("");
+    try {
+      await pair(await api.scanQrCode());
+    } catch (e) {
+      const c = errorMessage(e);
+      setError(PAIR_ERRORS[c] ?? `Couldn't scan (${c}).`);
+    }
+  }
+
+  return (
+    <div className="center-screen">
+      <div className="panel">
+        <div className="brand">
+          <img src="/logo.svg" alt="" width={48} height={48} />
+          <h1>Vaultix</h1>
+        </div>
+        <p className="lead">Pair with your computer</p>
+        <ol className="steps">
+          <li>Open Vaultix on your computer.</li>
+          <li>
+            Go to <strong>Settings → Phones → Add a phone</strong>.
+          </li>
+          <li>Scan the code it shows. Keep this phone on the same Wi-Fi.</li>
+        </ol>
+        <p className="muted small">
+          Your vault is copied straight from your computer over your Wi-Fi, encrypted, and stays in sync whenever both are on the same
+          network. It never goes through the internet.
+        </p>
+        {pasting ? (
+          <form
+            className="stack"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              pair(code);
+            }}
+          >
+            <label className="field">
+              <span className="field-label">Pairing code</span>
+              <textarea
+                rows={3}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="vaultix://pair?…"
+                autoFocus
+                disabled={busy}
+              />
+              <span className="hint">On your computer, click Copy as text under the QR code, and get the text to this phone.</span>
+            </label>
+            {error && <p className="error-text">{error}</p>}
+            <div className="row-end">
+              <button type="button" className="btn" onClick={() => setPasting(false)} disabled={busy}>
+                Back
+              </button>
+              <button type="submit" className="btn primary" disabled={busy || !code.trim()}>
+                {busy && <Spinner />} Pair
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            {error && <p className="error-text">{error}</p>}
+            <div className="phone-actions">
+              <button className="btn primary big" onClick={scan} disabled={busy}>
+                {busy ? <Spinner /> : null} {busy ? "Getting your vault…" : "Scan the code"}
+              </button>
+              <button className="btn plain" onClick={() => setPasting(true)} disabled={busy}>
+                Paste the code instead
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

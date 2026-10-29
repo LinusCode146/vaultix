@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, errorMessage, type Status, type TouchIdStatus } from "../api";
 import { Spinner, TouchIdIcon } from "../components/ui";
-import { biometric, computer, isMac } from "../platform";
+import { biometric, computer, isMac, isPhone } from "../platform";
 
 const TOUCH_ID_ERRORS: Record<string, string> = {
-  "touch-id-invalidated": isMac
-    ? "Your fingerprints changed, so Touch ID was turned off. Unlock with your master password to turn it back on."
-    : "Windows Hello was reset, so Vaultix stopped using it. Turn it on again in Settings.",
+  "touch-id-invalidated": isPhone
+    ? "Your fingerprints or face changed, so Vaultix stopped using them. Turn fingerprint unlock on again in Settings."
+    : isMac
+      ? "Your fingerprints changed, so Touch ID was turned off. Unlock with your master password to turn it back on."
+      : "Windows Hello was reset, so Vaultix stopped using it. Turn it on again in Settings.",
   "touch-id-lockout": `${biometric} is locked after too many attempts. Use your master password.`,
   "touch-id-unavailable": `${biometric} isn't available right now. Use your master password.`,
   "password-required": "Enter your master password. It's needed every two weeks so you don't forget it.",
@@ -112,21 +114,25 @@ export function Unlock({ status, onUnlocked, onForgotten }: { status: Status; on
           {error && <p className={touchId?.passwordRequired && !password ? "hint" : "error-text"}>{error}</p>}
         </div>
         <div className="unlock-foot">
-          <p className="hint vault-dir" title={status.vaultDir ?? ""}>
-            {status.vaultDir}
-          </p>
+          {!isPhone && (
+            <p className="hint vault-dir" title={status.vaultDir ?? ""}>
+              {status.vaultDir}
+            </p>
+          )}
           {confirmForget ? (
             <p className="hint">
-              Disconnect this {computer} from the vault? The vault files stay where they are.{" "}
+              {isPhone
+                ? "Remove the vault from this phone? It stays on your computer, and you can pair again."
+                : `Disconnect this ${computer} from the vault? The vault files stay where they are.`}{" "}
               <button
                 type="button"
                 className="link danger"
                 onClick={async () => {
-                  await api.forgetVault();
+                  await (isPhone ? api.unpair() : api.forgetVault());
                   onForgotten();
                 }}
               >
-                Disconnect
+                {isPhone ? "Remove" : "Disconnect"}
               </button>{" "}
               <button type="button" className="link" onClick={() => setConfirmForget(false)}>
                 Cancel
@@ -134,7 +140,7 @@ export function Unlock({ status, onUnlocked, onForgotten }: { status: Status; on
             </p>
           ) : (
             <button type="button" className="link subtle" onClick={() => setConfirmForget(true)}>
-              Use a different vault…
+              {isPhone ? "Remove from this phone…" : "Use a different vault…"}
             </button>
           )}
         </div>

@@ -1,10 +1,23 @@
-//! The Trash and QR codes on Windows and Linux, with portable crates.
+//! The Trash and QR codes on Windows, Linux and Android, with portable crates.
 
 use std::path::Path;
 
 /// Move a file to the Recycle Bin (Windows) or the desktop's trash (Linux).
+#[cfg(desktop)]
 pub fn trash(path: &Path) -> Result<(), String> {
     trash::delete(path).map_err(|_| format!("Couldn't move {} to the trash.", path.display()))
+}
+
+/// Android has no trash; nothing on the phone offers it.
+#[cfg(mobile)]
+pub fn trash(path: &Path) -> Result<(), String> {
+    Err(format!("Couldn't remove {}.", path.display()))
+}
+
+/// On a phone, codes are scanned with the camera instead (in the UI).
+#[cfg(mobile)]
+pub fn scan_screen_qr() -> Result<String, String> {
+    Err("qr-screen-unavailable".into())
 }
 
 /// The `otpauth://` URI in a two-factor QR code on screen. Blocks while the

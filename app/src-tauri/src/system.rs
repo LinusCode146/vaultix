@@ -1,10 +1,13 @@
 //! System events and services: locking when the computer is left, the Trash,
 //! and reading two-factor QR codes. One implementation per OS, below.
 
+#[cfg(desktop)]
 use std::sync::OnceLock;
 
+#[cfg(desktop)]
 use tauri::{AppHandle, Emitter, Manager};
 
+#[cfg(desktop)]
 use crate::commands::AppState;
 
 #[cfg(target_os = "macos")]
@@ -26,16 +29,20 @@ mod os;
 #[cfg(target_os = "macos")]
 use macos as os;
 
+#[cfg(desktop)]
 static APP: OnceLock<AppHandle> = OnceLock::new();
 
 /// Lock when the computer sleeps, its screen locks or another user switches
-/// in (unless turned off in Settings). Call once, on the main thread.
+/// in (unless turned off in Settings). Call once, on the main thread. (On a
+/// phone, the UI locks when the app goes to the background.)
+#[cfg(desktop)]
 pub fn lock_when_away(app: &AppHandle) {
     if APP.set(app.clone()).is_ok() {
         os::watch_away(on_away);
     }
 }
 
+#[cfg(desktop)]
 fn on_away() {
     let Some(app) = APP.get() else { return };
     let state = app.state::<AppState>();

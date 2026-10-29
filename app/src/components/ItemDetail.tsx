@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, errorMessage, type Category, type FieldValue, type FileRef, type ItemView, type PasswordChange, type TotpCode } from "../api";
 import { CategoryIcon, categoryDef, fieldDef, formatSize, groupDigits, isExpired, mergeFields } from "../categories";
 import { Avatar, CopyButton, CountdownRing, Icon, IconButton, StrengthIndicator, formatCode, hostOf } from "./ui";
-import { keys, modKey } from "../platform";
+import { isPhone, keys, modKey } from "../platform";
 
 interface Props {
   id: string;
@@ -249,6 +249,8 @@ function WebsiteRow({ itemId, url, first, canFill, onError }: { itemId: string; 
   const openable = /^https?:\/\//i.test(url) || !/^[a-z][a-z0-9+.-]*:/i.test(url);
   async function openAndFill() {
     try {
+      // No browser extension on a phone: just open the site (autofill fills it in).
+      if (isPhone) return await api.openUrl(/^https?:\/\//i.test(url) ? url : `https://${url}`);
       const { browser } = await api.openAndFill(itemId, url);
       setNote(
         browser
@@ -263,8 +265,8 @@ function WebsiteRow({ itemId, url, first, canFill, onError }: { itemId: string; 
     <>
       <Row label={first ? "website" : ""} value={<span className="value url">{url}</span>}>
         {openable && canFill && (
-          <button className="pill-btn" onClick={openAndFill} title="Open the website and sign in">
-            <Icon name="external" size={13} /> Open & Fill
+          <button className="pill-btn" onClick={openAndFill} title={isPhone ? "Open the website" : "Open the website and sign in"}>
+            <Icon name="external" size={13} /> {isPhone ? "Open" : "Open & Fill"}
           </button>
         )}
         <CopyButton value={url} label="Copy URL" />

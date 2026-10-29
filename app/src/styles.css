@@ -2048,3 +2048,163 @@ html.quick-window body {
 .small.center {
   text-align: center;
 }
+
+/* ---------- Phone (Android) ----------
+   One pane at a time: the list with a search bar, filter chips and tabs, or
+   an item / Settings / Watchtower with a back button. */
+html.phone body {
+  font-size: 15px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+html.phone .center-screen {
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 14px calc(24px + env(safe-area-inset-bottom, 0px));
+  align-items: start;
+}
+html.phone .panel {
+  padding: 22px 18px;
+}
+.phone-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+.btn.big {
+  height: 48px;
+  font-size: 16px;
+  justify-content: center;
+}
+.vault.phone,
+.vault.phone.no-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.vault.phone .sidebar {
+  display: none;
+}
+.vault.phone.pane-detail .list-column,
+.vault.phone.pane-list .detail {
+  display: none;
+}
+.vault.phone .list-column {
+  flex: 1;
+  border: none;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 8px 0;
+  overflow: hidden;
+}
+.vault.phone .item-list {
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+.vault.phone .item-list li {
+  min-height: 56px;
+}
+.vault.phone .list-head span {
+  display: none;
+}
+.vault.phone .detail {
+  flex: 1;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.phone-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 8px;
+}
+.phone-bar .search {
+  flex: 1;
+  height: 42px;
+}
+.phone-bar .search input {
+  font-size: 16px; /* keeps Android from zooming in */
+}
+.phone-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 0 6px 8px;
+  scrollbar-width: none;
+}
+.phone-chips button {
+  flex: none;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.phone-chips button[aria-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.phone-sync {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 0 12px 8px;
+}
+.phone-sync.failed {
+  color: var(--warn, #c77700);
+}
+.phone-tabs {
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid var(--border);
+  background: var(--sidebar);
+  padding: 6px 0 calc(6px + env(safe-area-inset-bottom, 0px));
+}
+.phone-tabs button {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  min-width: 72px;
+  padding: 4px 0;
+}
+.phone-back {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 6px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-soft);
+}
+.phone-back .btn {
+  font-size: 16px;
+}
+html.phone .item-detail {
+  padding: 16px 14px 32px;
+}
+html.phone .modal {
+  width: calc(100% - 24px);
+  max-height: calc(100% - 48px);
+}
+html.phone .banner {
+  margin: 12px 14px 0;
+}
+html.phone .banner.offer {
+  flex-wrap: wrap;
+}
+html.phone .banner.offer .row-end {
+  margin-left: auto;
+}
+html.phone .setting {
+  flex-wrap: wrap;
+}
+html.phone .setting .segmented {
+  flex-basis: 100%;
+}

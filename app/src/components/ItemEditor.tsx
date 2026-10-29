@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, errorMessage, type Category, type FieldValue, type FileRef, type ItemView, type PasswordOptions, type StrengthView, type TotpCode } from "../api";
 import { CategoryIcon, categoryDef, fieldDef, formatSize, groupDigits, mergeFields, normalizeMonthYear } from "../categories";
 import { Avatar, Icon, IconButton, Spinner, StrengthIndicator, formatCode, hostOf } from "./ui";
-import { computers, keys, modKey } from "../platform";
+import { computers, isPhone, keys, modKey } from "../platform";
 
 interface Props {
   /** `null` for a new item. */
@@ -45,11 +45,18 @@ export function ItemEditor({ item, category: newCategory = "login", website, onS
   const [scanning, setScanning] = useState(false);
   const [qrError, setQrError] = useState("");
 
-  /** Fill the one-time password from a QR code: on screen, in a file, or a pasted or dropped image. */
+  /** Fill the one-time password from a QR code: on screen (the camera, on a phone), in a file, or a pasted or dropped image. */
   async function scanQr(from: "screen" | "file" | Blob) {
     setScanning(true);
     setQrError("");
     try {
+      if (from === "screen" && isPhone) {
+        const text = await api.scanQrCode();
+        if (text && !/^otpauth(-migration)?:\/\//i.test(text)) throw "qr-not-totp";
+        if (text?.toLowerCase().startsWith("otpauth-migration:")) throw "qr-migration";
+        if (text) setTotp(text);
+        return;
+      }
       const uri = from === "screen" ? await api.scanTotpQr() : await api.scanTotpQrImage(from === "file" ? undefined : from);
       if (uri) setTotp(uri);
     } catch (e) {
@@ -268,7 +275,7 @@ export function ItemEditor({ item, category: newCategory = "login", website, onS
             spellCheck={false}
             aria-invalid={!!totpState.error}
           />
-          <button type="button" className="pill-btn" onClick={() => scanQr("screen")} disabled={scanning} title="Find the site's two-factor QR code on your screen">
+          <button type="button" className="pill-btn" onClick={() => scanQr("screen")} disabled={scanning} title={isPhone ? "Scan the site's two-factor QR code with the camera" : "Find the site's two-factor QR code on your screen"}>
             {scanning ? <Spinner /> : <Icon name="scan" size={13} />} Scan QR code
           </button>
           <button type="button" className="pill-btn subtle" onClick={() => scanQr("file")} disabled={scanning} title="Read the QR code from a screenshot">
@@ -360,7 +367,7 @@ export function ItemEditor({ item, category: newCategory = "login", website, onS
 
       {error && <p className="error-text">{error}</p>}
       <footer className="detail-footer">
-        <span className="muted small">{keys.mod}S to save · Esc to cancel</span>
+        <span className="muted small">{isPhone ? "" : `${keys.mod}S to save · Esc to cancel`}</span>
         <span className="row-end">
           <button type="button" className="btn" onClick={onCancel} disabled={saving}>
             Cancel

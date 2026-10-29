@@ -1,15 +1,17 @@
 # Vaultix
 
-A password manager for macOS, Windows and Linux: a desktop app plus a browser
-extension with autofill, one-time codes and passkeys. Your vault syncs between
-computers through a folder you already sync (iCloud Drive, OneDrive, Dropbox,
-Syncthing), with no server and no account.
+A password manager for macOS, Windows, Linux and Android: a desktop app plus a
+browser extension with autofill, one-time codes and passkeys, and a phone app.
+Your vault syncs between computers through a folder you already sync (iCloud
+Drive, OneDrive, Dropbox, Syncthing), and to your phone straight from your
+computer over Wi-Fi, with no server and no account.
 
 ## Features
 
 - Logins, credit cards, secure notes, identities, documents and API credentials
-- Touch ID (macOS) or Windows Hello unlock; locks when idle, on sleep and on
-  screen lock
+- Touch ID (macOS), Windows Hello or fingerprint/face (Android) unlock; locks
+  when idle, on sleep and on screen lock
+- Android app, paired with your computer by scanning a QR code
 - Browser extension for Chrome, Edge, Brave, Arc and Vivaldi: autofill,
   "save this login?", strong passwords on sign-up forms, and passkeys
 - One-time codes (TOTP), added by scanning a QR code on screen or in an image
@@ -37,6 +39,11 @@ explain how to open the app the first time and load the extension.
   extension needs. On Wayland, some desktops don't allow the global shortcut
   or reading the screen for QR codes: open quick search from the tray icon, and
   add QR codes from a screenshot.
+- **Android:** Android 7 or later. Download the `.apk` on the phone and open
+  it; Android asks once to allow installing apps from your browser. Then, on
+  your computer, open Settings → Phones → Add a phone and scan the code with
+  the app. The phone syncs whenever it's on the same Wi-Fi as the computer and
+  Vaultix is open there.
 
 ## Security
 
@@ -61,12 +68,21 @@ keeps the newest change per item. The app syncs as soon as another computer's
 changes arrive in the folder. Macs, Windows PCs and Linux machines can share
 one vault.
 
+Phones don't need the folder. A paired phone keeps its own copy in its private
+storage and swaps changes directly with the computer over the local network
+(`crates/vaultix-link`): only the files the other side lacks and the new end of
+each log, still encrypted, over TLS 1.3 where each side accepts only the
+other's certificate, learned when pairing. The computer can serve the vault
+while it's locked, and announces itself on the network so phones find it when
+its address changes.
+
 ## Development
 
 ```
 crates/vaultix-core          Crypto, vault, sync, TOTP, passkeys, import
 crates/vaultix-native-host   Program the browser starts to reach the app
-app/                         Tauri desktop app (React + TypeScript, Rust)
+crates/vaultix-link          Phone pairing and sync over the local network
+app/                         Tauri app for desktop and Android (React + TypeScript, Rust)
 extension/                   Manifest V3 browser extension
 ```
 
@@ -75,6 +91,9 @@ cargo test                      # Rust tests
 cd app && npm install
 npm run tauri dev               # run the app
 npm run dev                     # UI only, in a browser, with a fake backend
+                                # (add ?platform=android for the phone layout)
+npm run tauri android build -- --debug --apk --target aarch64
+                                # Android app; needs JDK 17, the Android SDK and NDK
 
 cd extension && npm install
 npm run build                   # then load extension/dist as an unpacked extension

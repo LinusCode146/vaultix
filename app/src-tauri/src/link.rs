@@ -175,6 +175,8 @@ pub fn phones(link: State<'_, Link>) -> Vec<PhoneView> {
 pub struct InviteView {
     /// The QR code, as an SVG document.
     qr: String,
+    /// What the QR code says, for phones that can't scan it.
+    uri: String,
     expires_at: u64,
     computer_name: String,
 }
@@ -203,6 +205,7 @@ pub fn add_phone(app: AppHandle, link: State<'_, Link>, state: State<'_, AppStat
     let expires = SystemTime::now() + INVITE_TTL;
     Ok(InviteView {
         qr: svg,
+        uri: invite.to_uri(),
         expires_at: expires.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO).as_millis() as u64,
         computer_name: invite.name,
     })

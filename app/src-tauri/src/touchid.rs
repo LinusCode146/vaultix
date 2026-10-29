@@ -1,9 +1,11 @@
-//! Unlocking with Touch ID (macOS) or Windows Hello instead of the master password.
+//! Unlocking with Touch ID (macOS), Windows Hello or a fingerprint / face
+//! (Android) instead of the master password.
 //!
 //! The vault key is wrapped with a 32-byte key that only this computer's
 //! security chip can recompute, after the user confirms: on a Mac, the Secure
 //! Enclave after a Touch ID match (see swift/TouchID.swift); on Windows, the
-//! TPM after Windows Hello (see `windows.rs`). The wrapped key and the key
+//! TPM after Windows Hello (see `windows.rs`); on Android, the Keystore after
+//! a strong biometric match (see `android.rs`). The wrapped key and the key
 //! material the chip needs are kept in `touch-id.json` on this computer only;
 //! none of it is useful elsewhere, or without the user.
 //!
@@ -25,8 +27,11 @@ const FILE: &str = "touch-id.json";
 
 #[cfg_attr(target_os = "macos", path = "touchid/macos.rs")]
 #[cfg_attr(windows, path = "touchid/windows.rs")]
-#[cfg_attr(not(any(target_os = "macos", windows)), path = "touchid/other.rs")]
+#[cfg_attr(target_os = "android", path = "touchid/android.rs")]
+#[cfg_attr(not(any(target_os = "macos", windows, target_os = "android")), path = "touchid/other.rs")]
 mod backend;
+#[cfg(target_os = "android")]
+pub use backend::plugin;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TouchIdError {
@@ -71,8 +76,8 @@ pub fn available() -> bool {
 }
 
 /// Whether setting up asks the user. Touch ID doesn't, so it is set up again
-/// silently after the fingers change; Windows Hello does, so it isn't.
-pub const SETUP_PROMPTS: bool = cfg!(windows);
+/// silently after the fingers change; Windows Hello and Android do, so it isn't.
+pub const SETUP_PROMPTS: bool = cfg!(any(windows, target_os = "android"));
 
 /// A new key for [`Enrollment::create`]. May show a prompt and block until
 /// the user responds; call it without holding the vault.
@@ -92,6 +97,8 @@ pub fn kind() -> Option<&'static str> {
         Some("touch-id")
     } else if cfg!(windows) {
         Some("windows-hello")
+    } else if cfg!(target_os = "android") {
+        Some("android-biometric")
     } else {
         None
     }

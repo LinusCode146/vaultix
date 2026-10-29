@@ -1,5 +1,6 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
+  "platforms": ["macOS", "windows", "linux"],
   "identifier": "default",
   "description": "The main window may use core APIs and open file and folder pickers. Clipboard access is Rust-side only.",
   "windows": ["main", "quick"],

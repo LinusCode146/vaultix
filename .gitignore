@@ -4,7 +4,7 @@
 node_modules/
 # Build output
 /app/dist
-/app/src-tauri/gen
+/app/src-tauri/gen/schemas
 /extension/dist
 /extension/test/build
 # IDE

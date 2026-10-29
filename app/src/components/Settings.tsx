@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, type AppSettings, type Backups, type PhoneInvite, type PhoneView, type TouchIdStatus } from "../api";
-import { biometric, computer, fileManager, isMac, keys, systemName } from "../platform";
+import {
+  api,
+  errorMessage,
+  type AppSettings,
+  type Backups,
+  type LinkStatus,
+  type PhoneInvite,
+  type PhoneView,
+  type TouchIdStatus,
+} from "../api";
+import { biometric, computer, fileManager, isMac, isPhone, keys, systemName } from "../platform";
 import { setThemePref, useTheme, type ThemePref } from "../theme";
 import { ImportDialog } from "./ImportDialog";
 import { RestoreDialog } from "./RestoreDialog";
@@ -13,9 +22,11 @@ const THEMES: { id: ThemePref; label: string }[] = [
 ];
 
 const ENROLL_ERRORS: Record<string, string> = {
-  "touch-id-unavailable": isMac
-    ? "Touch ID isn't available. Add a fingerprint in System Settings → Touch ID & Password."
-    : "Windows Hello isn't set up. Set it up in Settings → Accounts → Sign-in options.",
+  "touch-id-unavailable": isPhone
+    ? "No fingerprint or face is set up. Add one in Android's Settings → Security."
+    : isMac
+      ? "Touch ID isn't available. Add a fingerprint in System Settings → Touch ID & Password."
+      : "Windows Hello isn't set up. Set it up in Settings → Accounts → Sign-in options.",
   "touch-id-cancelled": `${biometric} was cancelled.`,
 };
 
@@ -51,6 +62,8 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
     try {
       await api.setTouchId(!touchId.enabled);
       setTouchId(await api.touchIdStatus());
+      // The "Turn on?" offer above is answered now.
+      window.dispatchEvent(new Event("vaultix-touch-id-changed"));
     } catch (e) {
       const code = errorMessage(e);
       if (code === "locked") onError(e);
@@ -68,7 +81,7 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
         </span>
         <div className="detail-title">
           <h1>Settings</h1>
-          <span className="item-sub">This {computer}</span>
+          <span className="item-sub">{isPhone ? "This phone" : `This ${computer}`}</span>
         </div>
       </header>
 
@@ -77,7 +90,7 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
           <Icon name="moon" size={26} />
           <div className="setting-text">
             <strong>Appearance</strong>
-            <p className="muted">Light or dark, or follow {systemName}. The moon and sun next to the Vaultix name switch it quickly.</p>
+            <p className="muted">Light or dark, or follow {systemName}.{isPhone ? "" : " The moon and sun next to the Vaultix name switch it quickly."}</p>
           </div>
           <div className="segmented" role="radiogroup" aria-label="Appearance">
             {THEMES.map((t) => (
@@ -101,17 +114,21 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
           <div className="setting">
             <TouchIdIcon size={26} />
             <div className="setting-text">
-              <strong>Unlock with {biometric}</strong>
+              <strong>Unlock with {isPhone ? "fingerprint or face" : biometric}</strong>
               <p className="muted">
-                {isMac
-                  ? "Unlock Vaultix, here and from the browser extension, with your fingerprint. The key stays in this Mac's Secure Enclave, and your master password is still asked for every two weeks."
-                  : "Unlock Vaultix, here and from the browser extension, with your face, fingerprint or PIN. The key stays in this computer's security chip, and your master password is still asked for every two weeks."}
+                {isPhone
+                  ? "Unlock Vaultix with your fingerprint or face. The key stays in this phone's secure hardware, and your master password is still asked for every two weeks."
+                  : isMac
+                    ? "Unlock Vaultix, here and from the browser extension, with your fingerprint. The key stays in this Mac's Secure Enclave, and your master password is still asked for every two weeks."
+                    : "Unlock Vaultix, here and from the browser extension, with your face, fingerprint or PIN. The key stays in this computer's security chip, and your master password is still asked for every two weeks."}
               </p>
               {touchId && !touchId.available && (
                 <p className="warn-text">
-                  {isMac
-                    ? "This Mac has no Touch ID, or no fingerprint is set up in System Settings."
-                    : "Windows Hello isn't set up on this computer. Set it up in Settings → Accounts → Sign-in options."}
+                  {isPhone
+                    ? "No fingerprint or face is set up. Add one in Android's Settings → Security."
+                    : isMac
+                      ? "This Mac has no Touch ID, or no fingerprint is set up in System Settings."
+                      : "Windows Hello isn't set up on this computer. Set it up in Settings → Accounts → Sign-in options."}
                 </p>
               )}
               {touchId?.enabled && touchId.passwordRequired && (
@@ -132,51 +149,87 @@ export function Settings({ onError, onVaultChanged }: { onError: (e: unknown) =>
             </button>
           </div>
         )}
-        <div className="setting">
-          <Icon name="lock" size={26} />
-          <div className="setting-text">
-            <strong>Lock when your {computer} sleeps</strong>
-            <p className="muted">Also when the screen locks or another user switches in. Vaultix still locks after 5 idle minutes either way.</p>
+        {!isPhone && (
+          <div className="setting">
+            <Icon name="lock" size={26} />
+            <div className="setting-text">
+              <strong>Lock when your {computer} sleeps</strong>
+              <p className="muted">
+                Also when the screen locks or another user switches in. Vaultix still locks after 5 idle minutes either way.
+              </p>
+            </div>
+            <Switch
+              label={`Lock when your ${computer} sleeps`}
+              on={!!settings?.lockOnSleep}
+              disabled={!settings}
+              onChange={(on) => change({ lockOnSleep: on })}
+            />
           </div>
-          <Switch label={`Lock when your ${computer} sleeps`} on={!!settings?.lockOnSleep} disabled={!settings} onChange={(on) => change({ lockOnSleep: on })} />
-        </div>
+        )}
+        {isPhone && (
+          <div className="setting">
+            <Icon name="lock" size={26} />
+            <div className="setting-text">
+              <strong>Locks by itself</strong>
+              <p className="muted">When you leave Vaultix for 30 seconds, and after 5 minutes without use.</p>
+            </div>
+          </div>
+        )}
       </section>
 
-      <section className="card">
-        <div className="setting">
-          <Icon name="search" size={26} />
-          <div className="setting-text">
-            <strong>
-              Quick search <kbd>{isMac ? "⌘" : "Ctrl"}</kbd>
-              <kbd>{isMac ? "⇧" : "Shift"}</kbd>
-              <kbd>Space</kbd>
-            </strong>
-            <p className="muted">
-              Find a login from any app and copy its password with {keys.enter}, username with {keys.shift}
-              {keys.enter} or one-time code with {keys.alt}
-              {keys.enter}, without opening this window.
-            </p>
+      {isPhone ? (
+        <ComputerCard onError={onError} />
+      ) : (
+        <>
+          <section className="card">
+            <div className="setting">
+              <Icon name="search" size={26} />
+              <div className="setting-text">
+                <strong>
+                  Quick search <kbd>{isMac ? "⌘" : "Ctrl"}</kbd>
+                  <kbd>{isMac ? "⇧" : "Shift"}</kbd>
+                  <kbd>Space</kbd>
+                </strong>
+                <p className="muted">
+                  Find a login from any app and copy its password with {keys.enter}, username with {keys.shift}
+                  {keys.enter} or one-time code with {keys.alt}
+                  {keys.enter}, without opening this window.
+                </p>
+              </div>
+              <Switch
+                label="Quick search"
+                on={!!settings?.quickSearch}
+                disabled={!settings}
+                onChange={(on) => change({ quickSearch: on })}
+              />
+            </div>
+          </section>
+
+          <PhonesCard onError={onError} />
+
+          <BackupsCard
+            settings={settings}
+            onPickFolder={(dir) => change({ backupDir: dir })}
+            onRestore={() => setDialog("restore")}
+            onError={onError}
+          />
+        </>
+      )}
+
+      {!isPhone && (
+        <section className="card">
+          <div className="setting">
+            <Icon name="arrowRight" size={26} />
+            <div className="setting-text">
+              <strong>Import</strong>
+              <p className="muted">Bring your passwords over from 1Password, KeePass, Chrome, Edge, Safari, Firefox or Bitwarden.</p>
+            </div>
+            <button className="btn" onClick={() => setDialog("import")}>
+              Import…
+            </button>
           </div>
-          <Switch label="Quick search" on={!!settings?.quickSearch} disabled={!settings} onChange={(on) => change({ quickSearch: on })} />
-        </div>
-      </section>
-
-      <PhonesCard onError={onError} />
-
-      <BackupsCard settings={settings} onPickFolder={(dir) => change({ backupDir: dir })} onRestore={() => setDialog("restore")} onError={onError} />
-
-      <section className="card">
-        <div className="setting">
-          <Icon name="arrowRight" size={26} />
-          <div className="setting-text">
-            <strong>Import</strong>
-            <p className="muted">Bring your passwords over from 1Password, KeePass, Chrome, Edge, Safari, Firefox or Bitwarden.</p>
-          </div>
-          <button className="btn" onClick={() => setDialog("import")}>
-            Import…
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
 
       {dialog === "import" && <ImportDialog onClose={() => setDialog(null)} onImported={onVaultChanged} />}
       {dialog === "restore" && <RestoreDialogLoader onClose={() => setDialog(null)} onRestored={onVaultChanged} onError={onError} />}
@@ -240,8 +293,8 @@ function BackupsCard({
         <div className="setting-text">
           <strong>Backups</strong>
           <p className="muted">
-            Once a day, Vaultix keeps an encrypted copy of your vault on this {computer}, outside the synced folder: the last two
-            weeks, then one a month for a year.
+            Once a day, Vaultix keeps an encrypted copy of your vault on this {computer}, outside the synced folder: the last two weeks,
+            then one a month for a year.
           </p>
           <p className="muted small">
             {newest ? `Last backup ${when(newest.createdAt)}` : "No backup yet"}
@@ -301,7 +354,12 @@ function PhonesCard({ onError }: { onError: (e: unknown) => void }) {
   }, [load]);
 
   async function remove(phone: PhoneView) {
-    if (!confirm(`Remove ${phone.name}? It stops syncing with this ${computer}. Its copy of the vault stays on the phone until you remove Vaultix there.`)) return;
+    if (
+      !confirm(
+        `Remove ${phone.name}? It stops syncing with this ${computer}. Its copy of the vault stays on the phone until you remove Vaultix there.`,
+      )
+    )
+      return;
     try {
       await api.removePhone(phone.id);
       await load();
@@ -317,8 +375,8 @@ function PhonesCard({ onError }: { onError: (e: unknown) => void }) {
         <div className="setting-text">
           <strong>Phones</strong>
           <p className="muted">
-            Use your vault on your Android phone. It syncs with this {computer} over your Wi-Fi whenever both are on the same
-            network and Vaultix is open here; nothing goes through the internet.
+            Use your vault on your Android phone. It syncs with this {computer} over your Wi-Fi whenever both are on the same network and
+            Vaultix is open here; nothing goes through the internet.
           </p>
           {phones && phones.length > 0 && (
             <ul className="phone-list">
@@ -420,7 +478,10 @@ function AddPhoneDialog({ phones, onClose }: { phones: PhoneView[]; onClose: () 
             </div>
             {invite && left > 0 && (
               <p className="muted small center">
-                Works once, for {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}. Only show it to your own phone.
+                Works once, for {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}. Only show it to your own phone.{" "}
+                <button className="link" onClick={() => api.copySecret(invite.uri).catch(() => {})}>
+                  Copy as text
+                </button>
               </p>
             )}
           </>
@@ -430,8 +491,83 @@ function AddPhoneDialog({ phones, onClose }: { phones: PhoneView[]; onClose: () 
   );
 }
 
+/** On a phone: the computer it syncs with. */
+function ComputerCard({ onError }: { onError: (e: unknown) => void }) {
+  const [link, setLink] = useState<LinkStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.linkStatus().then(setLink, onError);
+  }, [onError]);
+
+  async function syncNow() {
+    setBusy(true);
+    try {
+      setLink(await api.syncWithComputer());
+    } catch (e) {
+      onError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unpair() {
+    if (
+      !confirm(
+        `Remove the vault from this phone and stop syncing with ${link?.computerName ?? "your computer"}? Your vault stays on the computer.`,
+      )
+    )
+      return;
+    try {
+      await api.unpair();
+      location.reload();
+    } catch (e) {
+      onError(e);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="setting">
+        <Icon name="refresh" size={26} />
+        <div className="setting-text">
+          <strong>Synced with {link?.computerName ?? "your computer"}</strong>
+          <p className="muted">
+            Over your Wi-Fi, whenever this phone and the computer are on the same network and Vaultix is open there. Changes made here wait
+            on the phone until then.
+          </p>
+          <p className="muted small">
+            {link?.lastError === "link-unreachable"
+              ? "Can't reach it right now."
+              : link?.lastError
+                ? `The last sync failed (${link.lastError}).`
+                : link?.lastSync
+                  ? `Last synced ${ago(link.lastSync)}`
+                  : "Not synced yet"}
+          </p>
+          <div className="setting-actions">
+            <button className="btn" onClick={syncNow} disabled={busy}>
+              {busy && <Spinner />} Sync now
+            </button>
+            <button className="btn plain" onClick={unpair}>
+              Remove from this phone…
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** Loads the list of backups, then shows the restore dialog. */
-function RestoreDialogLoader({ onClose, onRestored, onError }: { onClose: () => void; onRestored: () => void; onError: (e: unknown) => void }) {
+function RestoreDialogLoader({
+  onClose,
+  onRestored,
+  onError,
+}: {
+  onClose: () => void;
+  onRestored: () => void;
+  onError: (e: unknown) => void;
+}) {
   const [backups, setBackups] = useState<Backups | null>(null);
   useEffect(() => {
     api.backups().then(setBackups, onError);

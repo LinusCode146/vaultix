@@ -167,7 +167,7 @@ impl AppState {
         }
     }
 
-    fn set_vault_location(&self, location: Option<VaultLocation>) -> Result<(), String> {
+    pub(crate) fn set_vault_location(&self, location: Option<VaultLocation>) -> Result<(), String> {
         let mut config = self.config.lock().unwrap();
         config.vault = location;
         config.save(&self.config_path).map_err(|e| e.to_string())
@@ -391,7 +391,9 @@ pub async fn create_vault(app: AppHandle, state: State<'_, AppState>, parent_dir
     let vault = Vault::create(&dir, &password, device_id).map_err(|e| e.to_string())?;
     state.set_vault_location(Some(VaultLocation { dir, vault_id: vault.vault_id() }))?;
     *state.vault.lock().unwrap() = Some(vault);
+    #[cfg(desktop)]
     crate::watch::watch(&app, state.vault_dir());
+    #[cfg(desktop)]
     crate::link::set_vault_dir(&app, state.vault_dir());
     Ok(())
 }
@@ -405,7 +407,9 @@ pub async fn join_vault(app: AppHandle, state: State<'_, AppState>, dir: String,
     let vault = Vault::unlock(&dir, &password, device_id).map_err(|e| e.to_string())?;
     state.set_vault_location(Some(VaultLocation { dir, vault_id: vault.vault_id() }))?;
     *state.vault.lock().unwrap() = Some(vault);
+    #[cfg(desktop)]
     crate::watch::watch(&app, state.vault_dir());
+    #[cfg(desktop)]
     crate::link::set_vault_dir(&app, state.vault_dir());
     Ok(())
 }
@@ -470,6 +474,7 @@ pub async fn app_settings(state: State<'_, AppState>) -> CmdResult<Settings> {
 
 #[tauri::command]
 pub async fn set_app_settings(app: AppHandle, settings: Settings) -> CmdResult<()> {
+    #[cfg(desktop)]
     crate::quick::set_enabled(&app, settings.quick_search);
     let state = app.state::<AppState>();
     let mut config = state.config.lock().unwrap();
@@ -480,7 +485,9 @@ pub async fn set_app_settings(app: AppHandle, settings: Settings) -> CmdResult<(
 /// Disconnect this Mac from its vault (files in the synced folder are kept).
 #[tauri::command]
 pub async fn forget_vault(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    #[cfg(desktop)]
     crate::watch::watch(&app, None);
+    #[cfg(desktop)]
     crate::link::set_vault_dir(&app, None);
     *state.vault.lock().unwrap() = None;
     Enrollment::remove(&state.config_dir());
@@ -895,6 +902,7 @@ fn card_brand(digits: &str) -> Option<&'static str> {
 
 // ---------- Open & Fill ----------
 
+#[cfg(desktop)]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenedIn {
@@ -905,6 +913,7 @@ pub struct OpenedIn {
 
 /// Open one of a login's websites in the browser where the Vaultix extension
 /// runs; the extension then fills and submits the login form when it appears.
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn open_and_fill(app: AppHandle, state: State<'_, AppState>, id: String, url: String) -> CmdResult<OpenedIn> {
     let id = parse_id(&id)?;
@@ -928,6 +937,7 @@ pub async fn open_and_fill(app: AppHandle, state: State<'_, AppState>, id: Strin
 
 /// Open `url` in `browser` (an `.app` bundle on macOS, an executable
 /// elsewhere), or in the default browser.
+#[cfg(desktop)]
 fn open_in(app: &AppHandle, browser: Option<&Path>, url: &str) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     let Some(browser) = browser else {
