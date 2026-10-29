@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/vaultix-core", "app/src-tauri", "crates/vaultix-native-host"]
+members = ["crates/vaultix-core", "crates/vaultix-link", "app/src-tauri", "crates/vaultix-native-host"]
 
 # Argon2 is unusably slow without optimizations; keep it fast in debug builds too.
 [profile.dev.package.argon2]
