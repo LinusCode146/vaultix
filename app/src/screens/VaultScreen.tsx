@@ -191,16 +191,26 @@ export function VaultScreen({ onLocked }: { onLocked: () => void }) {
 
   // On a phone, Android's back gesture returns from an item (or Settings) to the list.
   const open = selection.kind !== "none";
+  const pushed = useRef(false);
   useEffect(() => {
     if (!isPhone || !open) return;
-    if (!history.state?.vaultixDetail) history.pushState({ vaultixDetail: true }, "");
-    const onPop = () => setSelection({ kind: "none" });
+    if (!pushed.current) {
+      history.pushState({ vaultixDetail: true }, "");
+      pushed.current = true;
+    }
+    const onPop = () => {
+      pushed.current = false;
+      setSelection({ kind: "none" });
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [open]);
   // Closed from the UI (the back button, a delete): drop the history entry too.
   useEffect(() => {
-    if (isPhone && !open && history.state?.vaultixDetail) history.back();
+    if (isPhone && !open && pushed.current) {
+      pushed.current = false;
+      if (history.state?.vaultixDetail) history.back();
+    }
   }, [open]);
 
   // Pull down on the list to sync.

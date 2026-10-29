@@ -52,9 +52,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
+      # The runner has the Android SDK already (ANDROID_HOME); add the NDK.
       - name: Android NDK
-        run: sdkmanager "ndk;27.2.12479018"
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" > /dev/null
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android

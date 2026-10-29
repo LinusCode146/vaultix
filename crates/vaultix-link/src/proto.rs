@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -217,7 +217,8 @@ fn append_log(path: &Path, offset: u64, data: &[u8]) -> io::Result<bool> {
         return Ok(false);
     }
     fs::create_dir_all(path.parent().unwrap())?;
-    let mut file = OpenOptions::new().create(true).read(true).append(true).open(path)?;
+    // Not opened for appending: Windows refuses to truncate such a file.
+    let mut file = OpenOptions::new().create(true).truncate(false).read(true).write(true).open(path)?;
     let mut current = vec![];
     file.read_to_end(&mut current)?;
     let complete = complete_len(&current) as u64;
@@ -229,6 +230,7 @@ fn append_log(path: &Path, offset: u64, data: &[u8]) -> io::Result<bool> {
     if (current.len() as u64) > complete {
         file.set_len(complete)?;
     }
+    file.seek(SeekFrom::Start(complete))?;
     file.write_all(data)?;
     file.sync_all()?;
     Ok(true)

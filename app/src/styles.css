@@ -2200,11 +2200,43 @@ html.phone .banner.offer {
   flex-wrap: wrap;
 }
 html.phone .banner.offer .row-end {
-  margin-left: auto;
+  flex-basis: 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 html.phone .setting {
   flex-wrap: wrap;
 }
 html.phone .setting .segmented {
   flex-basis: 100%;
+}
+/* Watchtower on a phone: the score under the title, cards in one column. */
+html.phone .watchtower {
+  padding: 16px 14px 32px;
+  gap: 14px;
+}
+html.phone .wt-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+html.phone .wt-intro h1 {
+  font-size: 24px;
+}
+html.phone .wt-intro p {
+  max-width: none;
+}
+html.phone .wt-gauge {
+  align-self: center;
+}
+html.phone .wt-gauge svg {
+  width: 200px;
+  height: auto;
+}
+html.phone .wt-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+html.phone .detail {
+  overflow-x: hidden;
 }
