@@ -94,6 +94,8 @@ npm run dev                     # UI only, in a browser, with a fake backend
                                 # (add ?platform=android for the phone layout)
 npm run tauri android build -- --debug --apk --target aarch64
                                 # Android app; needs JDK 17, the Android SDK and NDK
+scripts/release-android.sh      # signed release APK in dist/ (makes the signing key
+                                # in ~/.vaultix on first run: back it up)
 
 cd extension && npm install
 npm run build                   # then load extension/dist as an unpacked extension

@@ -1,6 +1,6 @@
 [package]
 name = "vaultix-link"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Pairs a phone with a computer and syncs the vault folder between them over the local network."

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Vaultix",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Fill and save passwords with the Vaultix app.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0/tB08eIORyC8+P8co3YQ/7m4Ne1vy0lvoWmgkZ09B6dnHVjWYuix3YVIAHIbPGJ4m44rGV3l4hCK7WSD6LFVHNGK1Rbk704cIWxleB2Rrukdomouhpv6LhlAEZQA1FI7igwABDkK0rcU8oTaYqzPixUc1oJrlBJTyBM0Wi9MAmAACJF9ZIgEhAfoWX0ch44plVu8E0moiyXBI8eBnLD1eDfY1E0qDglfBK5ktD+Zw/VTrTm7XGvW76O8WWw6FRnaeKw/YZlY9R83X7potZcJ2grjkrY8vq3i4cZHc+wQmV7yxt54d6U+mXzFDTtWv/JtoGhZwTiQ4t2v2AFWzgufwIDAQAB",
   "minimum_chrome_version": "116",
