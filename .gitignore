@@ -16,3 +16,5 @@ node_modules/
 # Local Claude Code settings
 .claude/
 /app/src-tauri/binaries
+# Graphify knowledge graph and Obsidian vault (rebuilt locally)
+graphify-out/

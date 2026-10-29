@@ -1,0 +1,9 @@
+# Keep the graph to source code: config and build files add nodes that
+# match broad queries without explaining anything.
+*.json
+*.gradle
+*.gradle.kts
+gradlew
+.github/
+app/src-tauri/gen/android/buildSrc/
+CLAUDE.md
